@@ -12,14 +12,14 @@ import scala.util.parsing.json.JSONObject
 
 import edu.ucas.cs.dbcourse.spark.bplusrdd.bptree._
 
-class WrappedJsonObj(private val robj: Map[String, Any]) {
+class WrappedJsonObj(val robj: Map[String, Any]) extends AnyVal {
   //def get(key: String) = robj get key
   def toString() = robj.toString
   def contains(indexedField: String): Boolean = robj contains indexedField
 }
 
 object WrappedJsonObj {
-  def apply(s: String): Option[WrappedJsonObj] = JSON.parseFull(s) match {
+  def parseFull(s: String): Option[WrappedJsonObj] = JSON.parseFull(s) match {
     case Some(robj: Map[String, Any]): Some(new WrappedJsonObj(rObj))
     case _ => None 
   }
@@ -30,7 +30,7 @@ class BplusRDDPartition[K <: Ordering]() {
 
   def buildBplusTree(iter: Iterator[String], f: String => K): this.type = {
     iter.foreach {s => 
-      WrappedJsonObj(s) match {
+      WrappedJsonObj.parseFull(s) match {
         case Some(wObj) => (wObj contains indexedField) match {
             case true => bpTree.put(f s, s)
             case false => throw new SparkException("Bad json format, no indexed field: " + wObj.toString) 
@@ -58,7 +58,7 @@ class BplusRDD[K <: Ordering](
 }
 
 object BplusRDD {
-  def apply[K <: Ordering](src: RDD[String], indexedField: String, f: String => K) = 
+  def apply[K <: Ordering](src: RDD[String], indexedField: String, f: String => K = _) = 
     new BplusRDD(src.mapPartitions[BplusRDDPartition[K]](
       iter => Iterator(BplusRDDPartition[K](iter, indexedField, f)), preservesPartitioning = true), indexedField)
 }
