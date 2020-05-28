@@ -13,11 +13,11 @@ import org.json4s.jackson.JsonMethods._
 import edu.ucas.cs.dbcourse.spark.bplusrdd.bptree._
 
 object JsonTool {
-  def parseJson[K <: Ordering](s: String, indexedField: String): K = 
+  def parseJson[K : Ordering](s: String, indexedField: String): K = 
     (parse(s) \ indexedField).extract[K]
 }
 
-class BplusRDDPartition[K <: Ordering](private val indexedField: String) {
+class BplusRDDPartition[K : Ordering](private val indexedField: String) {
   private val bpTree = new BPlusTree[K, String](new BPlusTreeConfig(), indexedField)
 
   def buildBplusTree(iter: Iterator[String]): this.type = {
@@ -29,12 +29,12 @@ class BplusRDDPartition[K <: Ordering](private val indexedField: String) {
 }
 
 object BplusRDDPartition {
-  def apply[K <: Ordering](iter: Iterator[String], indexedField: String) =
+  def apply[K : Ordering](iter: Iterator[String], indexedField: String) =
     new BplusRDDPartition(indexedField).buildBplusTree(iter)
 }
 
 // filter: BplusRDDPartition.iterator.filter(cleanF)
-class BplusRDD[K <: Ordering](private val prev: RDD[BplusRDDPartition[K]]):
+class BplusRDD[K : Ordering](private val prev: RDD[BplusRDDPartition[K]]):
   extends RDD[String](prev.context, List(new OneToOneDependency(prev))) {
 
   override val partitioner = prev.partitioner
@@ -45,7 +45,7 @@ class BplusRDD[K <: Ordering](private val prev: RDD[BplusRDDPartition[K]]):
 }
 
 object BplusRDD {
-  def apply[K <: Ordering](src: RDD[String], indexedField: String) = 
+  def apply[K : Ordering](src: RDD[String], indexedField: String) = 
     new BplusRDD(src.mapPartitions[BplusRDDPartition[K]](
       iter => Iterator(BplusRDDPartition[K](iter, indexedField)), preservesPartitioning = true))
 }

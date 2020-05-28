@@ -3,6 +3,8 @@ package edu.ucas.cs.dbcourse.spark.bplusrdd.bptree
 import scala.reflect.ClassTag
 import scala.collection.mutable
 
+import Ordered._;
+
 object Counter {
     private var ct: Int = 0
 
@@ -13,7 +15,7 @@ object Counter {
     }
 }
 
-private abstract class Node[K <: Ordering, V: ClassTag] (
+private abstract class Node[K : Ordering, V: ClassTag] (
     private val nodeWidth: Int = 64,
     private val nodeId: Int = 0
 ) {
@@ -71,7 +73,7 @@ private abstract class Node[K <: Ordering, V: ClassTag] (
     def report: Unit
 }
 
-private case class InternalNode[K <: Ordering, V: ClassTag] (
+private case class InternalNode[K : Ordering, V: ClassTag] (
     val nodeWidth: Int = 64,
     val nodeId: Int = 0
 ) extends Node[K, V](nodeWidth + 1, nodeId) {
@@ -238,7 +240,7 @@ private case class InternalNode[K <: Ordering, V: ClassTag] (
     }
 }
 
-private case class LeafNode[K <: Ordering, V: ClassTag] (
+private case class LeafNode[K : Ordering, V: ClassTag] (
     val nodeWidth: Int = 64,
     val nodeId: Int = 0,
     private var next: Option[LeafNode[K, V]] = None

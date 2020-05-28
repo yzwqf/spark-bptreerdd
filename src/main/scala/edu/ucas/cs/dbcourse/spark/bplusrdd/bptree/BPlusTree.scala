@@ -7,7 +7,7 @@ class BPlusTreeConfig (
     val leafWidth: Int = 64
 )
 
-class BPlusTree[K <: Ordering, V: ClassTag] (
+class BPlusTree[K : Ordering, V: ClassTag] (
     private val config: BPlusTreeConfig,
     private val indexedField: String
 ) {

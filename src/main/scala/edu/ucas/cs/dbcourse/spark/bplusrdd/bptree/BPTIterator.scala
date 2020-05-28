@@ -7,7 +7,7 @@ object BPTFilterOperator extends Enumeration {
   val LT, GT, EQ, LE, GE, CloseRange, OpenRange = Value
 }
 
-class BPTIterator[K <: Ordering, V: ClassTag](protected val bpTree: BPlusTree[K, V]):
+class BPTIterator[K : Ordering, V: ClassTag](protected val bpTree: BPlusTree[K, V]):
   extends Iterator[V] {
 
   private var gotNext = false
@@ -49,7 +49,7 @@ class BPTIterator[K <: Ordering, V: ClassTag](protected val bpTree: BPlusTree[K,
   }
 }
 
-class FilterFunction[K <: Ordering](private val f: K => Boolean, op: String)
+class FilterFunction[K : Ordering](private val f: K => Boolean, op: String)
   extends Function1[K, Boolean] {
 }
 
