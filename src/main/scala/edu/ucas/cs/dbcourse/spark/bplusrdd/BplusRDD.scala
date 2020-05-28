@@ -7,44 +7,28 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
-import scala.util.parsing.json.JSON
-import scala.util.parsing.json.JSONObject
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 import edu.ucas.cs.dbcourse.spark.bplusrdd.bptree._
 
-class WrappedJsonObj(val robj: Map[String, Any]) extends AnyVal {
-  //def get(key: String) = robj get key
-  def toString() = robj.toString
-  def contains(indexedField: String): Boolean = robj contains indexedField
-}
-
-object WrappedJsonObj {
-  def parseFull(s: String): Option[WrappedJsonObj] = JSON.parseFull(s) match {
-    case Some(robj: Map[String, Any]): Some(new WrappedJsonObj(rObj))
-    case _ => None 
-  }
+object JsonTool {
+  def parseJson[K <: Ordering](s: String, indexedField: String): K = 
+    (parse(s) \ indexedField).extract[K]
 }
 
 class BplusRDDPartition[K <: Ordering]() {
   private val bpTree = new BPlusTree[K, String](new BPlusTreeConfig())
 
-  def buildBplusTree(iter: Iterator[String], f: String => K): this.type = {
-    iter.foreach {s => 
-      WrappedJsonObj.parseFull(s) match {
-        case Some(wObj) => (wObj contains indexedField) match {
-            case true => bpTree.put(f s, s)
-            case false => throw new SparkException("Bad json format, no indexed field: " + wObj.toString) 
-          }
-        case _ => throw new SparkException("Bad json format, can not parse: " + s) 
-      }
-    }
+  def buildBplusTree(iter: Iterator[String]): this.type = {
+    iter.foreach (s => bpTree.put(JsonTool.parseJson[K](s, indexedField), s))
     this
   }
 }
 
 object BplusRDDPartition {
-  def apply[K <: Ordering](iter: Iterator[String], indexedField: String, f: String => K) =
-    new BplusRDDPartition().buildBplusTree(iter, f)
+  def apply[K <: Ordering](iter: Iterator[String], indexedField: String) =
+    new BplusRDDPartition().buildBplusTree(iter)
 }
 
 class BplusRDD[K <: Ordering](
@@ -53,12 +37,11 @@ class BplusRDD[K <: Ordering](
   extends RDD[String](prev.context, List(new OneToOneDependency(prev))) {
 
   override val partitioner = prev.partitioner
-
   override protected def getPartitions: Array[Partition] = prev.partitions
 }
 
 object BplusRDD {
-  def apply[K <: Ordering](src: RDD[String], indexedField: String, f: String => K = _) = 
+  def apply[K <: Ordering](src: RDD[String], indexedField: String) = 
     new BplusRDD(src.mapPartitions[BplusRDDPartition[K]](
-      iter => Iterator(BplusRDDPartition[K](iter, indexedField, f)), preservesPartitioning = true), indexedField)
+      iter => Iterator(BplusRDDPartition[K](iter, indexedField)), preservesPartitioning = true), indexedField)
 }
