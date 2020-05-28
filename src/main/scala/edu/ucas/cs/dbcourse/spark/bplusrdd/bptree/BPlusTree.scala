@@ -12,7 +12,7 @@ class BPlusTree[K : Ordering, V: ClassTag] (
     private val indexedField: String
 ) {
     private var _root = new LeafNode[K, V](config.leafWidth, Counter.inc())
-    private var root: Node[K] = _root
+    private var root: Node[K, V] = _root
     private var firstLeaf = _root
 
     def get(k: K): Option[V] = root.get(k)
@@ -32,10 +32,9 @@ class BPlusTree[K : Ordering, V: ClassTag] (
     def indexedBy(field: String): Boolean = indexedField == field
 }
 
-/*
 object BPTree {
     def main(args: Array[String]): Unit = {
-        val l = new BPlusTree[Int, Int](new BPlusTreeConfig(3, 3))
+        val l = new BPlusTree[Int, Int](new BPlusTreeConfig(3, 3), "")
         println("inserting")
         val data = (1 to args(0).toInt)
         val ans = data.fold(0)(_ + _)
@@ -60,4 +59,3 @@ object BPTree {
         })
     }
 }
-*/

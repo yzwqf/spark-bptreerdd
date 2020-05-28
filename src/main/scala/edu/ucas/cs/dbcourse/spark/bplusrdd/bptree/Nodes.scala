@@ -17,7 +17,7 @@ object Counter {
 
 private abstract class Node[K : Ordering, V: ClassTag] (
     private val nodeWidth: Int = 64,
-    private val nodeId: Int = 0
+    val nodeId: Int = 0
 ) {
     protected var keys: Array[Option[K]] = Array.fill[Option[K]](nodeWidth)(None)
     protected var numKeys:  Int = 0
@@ -55,7 +55,7 @@ private abstract class Node[K : Ordering, V: ClassTag] (
         }).size != 0
     }
 
-    def updateParent(p: Option[Node[K]]): Unit = {
+    def updateParent(p: Option[Node[K, V]]): Unit = {
         parent = p
     }
 
@@ -75,13 +75,13 @@ private abstract class Node[K : Ordering, V: ClassTag] (
 
 private case class InternalNode[K : Ordering, V: ClassTag] (
     val nodeWidth: Int = 64,
-    val nodeId: Int = 0
-) extends Node[K, V](nodeWidth + 1, nodeId) {
+    val _nodeId: Int = 0
+) extends Node[K, V](nodeWidth + 1, _nodeId) {
 
     // one more slot for making shift easier
     // one more slot to fulfill structural requirements of B+ tree
-    private var children: Array[Option[Node[K]]] = 
-      Array.fill[Option[Node[K]]](nodeWidth + 2)(None)
+    private var children: Array[Option[Node[K, V]]] = 
+      Array.fill[Option[Node[K, V]]](nodeWidth + 2)(None)
 
     override def report: Unit = {
         println(s"internal node $nodeId reporting")
@@ -242,9 +242,9 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
 
 private case class LeafNode[K : Ordering, V: ClassTag] (
     val nodeWidth: Int = 64,
-    val nodeId: Int = 0,
+    val _nodeId: Int = 0,
     private var next: Option[LeafNode[K, V]] = None
-) extends Node[K, V](nodeWidth + 1, nodeId) {
+) extends Node[K, V](nodeWidth + 1, _nodeId) {
 
     // one more slot makes shift much simpler
     private var values: Array[Option[V]] = Array.fill[Option[V]](nodeWidth + 1)(None)
@@ -284,7 +284,7 @@ private case class LeafNode[K : Ordering, V: ClassTag] (
         }
     }
 
-    override def getRoot: Node[K] = {
+    override def getRoot: Node[K, V] = {
         if (parent.isEmpty)
             return this
 
@@ -295,22 +295,30 @@ private case class LeafNode[K : Ordering, V: ClassTag] (
     }
 
     def range(start: K, end: K): Array[Option[V]] = {
+        def range_accumulator(node: LeafNode[K, V], start: K, end: K, ret: mutable.ArrayBuffer[Option[V]], ct: Int): Unit = {
+            val seq = (0 until numKeys).filter(i => {
+                val key = node.keys(i).get
+                (key >= start) && (key <= end)
+            })
+
+            if (seq.size == 0)
+                return
+
+            seq.foreach(i => ret += node.values(i))
+
+            if (node.next.isEmpty)
+                return
+
+            range_accumulator(node.next.get, start, end, ret, ct + 1)
+        }
+
         if (start > end) {
             throw new RuntimeException("range start is greater than end")
         }
 
-        val seq = (0 until numKeys).filter(i => {
-            val key = keys(i).get
-            (key >= start) || (key <= end)
-        })
-
         var ret = new mutable.ArrayBuffer[Option[V]]
-
-        seq.foreach(i => ret += values(i))
-        next match {
-            case Some(n) => ret.toArray ++ n.range(start, end)
-            case None => ret.toArray
-        }
+        range_accumulator(this, start, end, ret, 0)
+        ret.toArray
     }
 
     private def simplePut(k: K, v: V): Boolean = {
