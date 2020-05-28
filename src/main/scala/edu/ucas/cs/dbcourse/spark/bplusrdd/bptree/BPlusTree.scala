@@ -7,63 +7,30 @@ class BPlusTreeConfig (
     val leafWidth: Int = 64
 )
 
-class BPlusTree[K: ClassTag, V: ClassTag] (
+class BPlusTree[K <: Ordering, V: ClassTag] (
     private val config: BPlusTreeConfig
 ) {
     private var _root = new LeafNode[K, V](config.leafWidth, Counter.inc())
     private var root: Node[K] = _root
     private var firstLeaf = _root
 
-    private def complexPut(k: String): Boolean = {
-        return false
-    }
+    def get(k: K): Option[V] = root.get(k)
 
-    private def simplePut(k: String): Boolean = {
-        return false
-    }
-
-    def get(k: K)(implicit cmp: (K, K) => Int): Option[V] = {
-        root match {
-            case in: InternalNode[K, V] => in.get(k)
-            case lf: LeafNode[K, V] => lf.get(k)
-        }
-
-    }
-
-    def put(k: K, v: V)(implicit cmp: (K, K) => Int): Boolean = {
-        var status = false
-        root match {
-            case inter: InternalNode[K, V] => {
-                status = inter.put(k, v)
-                root = inter.getRoot
-            }
-            case leaf: LeafNode[K, V] => {
-                status = leaf.put(k, v)
-                root = leaf.getRoot
-            }
-        }
+    def put(k: K, v: V): Boolean = {
+        val status = root.put(k, v)
+        root = root.getRoot
         status
     }
 
-    def range(start: K, end: K)(implicit cmp: (K, K) => Int): Array[Option[V]] = {
+    def range(start: K, end: K): Array[Option[V]] =
         firstLeaf.range(start, end)
-    }
 
-    def report: Unit = {
+    def report: Unit =
         root.report
-    }
 }
 
 /*
 object BPTree {
-
-    // when you instantiate a BPlusTree instance, please offer an implicit
-    // cmp function so BPlusTree knows how to compare keys.
-    // I was expecting something like Trait Bound in Rust, but Scala
-    // seems not to have such feature, so I used this dumb implicit function
-    implicit def cmp(lhs: String, rhs: String): Int = lhs.compareTo(rhs)
-    implicit def cmp(lhs: Int, rhs: Int): Int = lhs.compareTo(rhs)
-
     def main(args: Array[String]): Unit = {
         val l = new BPlusTree[Int, Int](new BPlusTreeConfig(3, 3))
         println("inserting")

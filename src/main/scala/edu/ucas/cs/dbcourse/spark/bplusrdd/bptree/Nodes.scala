@@ -13,23 +13,19 @@ object Counter {
     }
 }
 
-private abstract class Node[K: ClassTag] (
+private abstract class Node[K <: Ordering, V: ClassTag] (
     private val nodeWidth: Int = 64,
-    val nodeId: Int = 0
+    private val nodeId: Int = 0
 ) {
     protected var keys: Array[Option[K]] = Array.fill[Option[K]](nodeWidth)(None)
     protected var numKeys:  Int = 0
-    var parent: Option[Node[K]] = None
+    var parent: Option[Node[K, V]] = None
 
-    def probe(k: K)(implicit cmp: (K, K) => Int): Int = {
-        // this is correct since no holes would appear in values and keys
-        keys.indexWhere(key => key match {
-            case Some(k_) => cmp(k, k_) < 0
+    // this is correct since no holes would appear in values and keys
+    def probe(k: K): Int = keys.indexWhere(key => key match {
+            case Some(k_) => k < k_
             case None => true
         })
-    }
-
-
 
     def printKey: Unit = {
         keys.foreach(k => k match {
@@ -39,7 +35,7 @@ private abstract class Node[K: ClassTag] (
     }
 
     def hasSlot: Boolean = {
-        for (i <- 0 until keys.size) {
+        for (i <- 0 until keys.size - 1) {
             keys(i) match {
                 case Some(_) =>
                 case None => return true
@@ -57,34 +53,33 @@ private abstract class Node[K: ClassTag] (
         }).size != 0
     }
 
-    def report: Unit = {
-        println("this is a node")
-    }
-
     def updateParent(p: Option[Node[K]]): Unit = {
         parent = p
     }
+
+    def isRoot: Boolean = {
+        parent match {
+            case Some(_) => false
+            case None => true
+        }
+    }
+
+
+    def get(k: K): Option[V]
+    def put(k: K, v: V): Boolean
+    def getRoot: Node[K, V]
+    def report: Unit
 }
 
-private case class InternalNode[K: ClassTag, V] (
-    private val nodeWidth: Int = 64,
-    override val nodeId: Int = 0
-) extends Node[K](nodeWidth + 1, nodeId) {
+private case class InternalNode[K <: Ordering, V: ClassTag] (
+    val nodeWidth: Int = 64,
+    val nodeId: Int = 0
+) extends Node[K, V](nodeWidth + 1, nodeId) {
 
     // one more slot for making shift easier
     // one more slot to fulfill structural requirements of B+ tree
     private var children: Array[Option[Node[K]]] = 
-                            Array.fill[Option[Node[K]]](nodeWidth + 2)(None)
-    
-    override def hasSlot: Boolean = {
-        for (i <- 0 until keys.size - 1) {
-            keys(i) match {
-                case Some(_) =>
-                case None => return true
-            }
-        }
-        false
-    }
+      Array.fill[Option[Node[K]]](nodeWidth + 2)(None)
 
     override def report: Unit = {
         println(s"internal node $nodeId reporting")
@@ -93,19 +88,13 @@ private case class InternalNode[K: ClassTag, V] (
         for (i <- 0 until numKeys) {
             keysContent.append(keys(i).get.toString() + " ")
             children(i) match {
-                case Some(c) => c match {
-                    case inter: InternalNode[K, V] => childrenContent.append(inter.nodeId.toString() + " ")
-                    case leaf: LeafNode[K, V] => childrenContent.append(leaf.nodeId.toString() + " ")
-                }
+                case Some(c) => childrenContent.append(c.nodeId.toString() + " ")
                 case None =>
             }
         }
 
         children(numKeys) match {
-            case Some(c) => c match {
-                case inter: InternalNode[K, V] => childrenContent.append(inter.nodeId.toString() + " ")
-                case leaf: LeafNode[K, V] => childrenContent.append(leaf.nodeId.toString() + " ")
-            }
+            case Some(c) => childrenContent.append(c.nodeId.toString() + " ")
             case None =>
         }
         
@@ -118,7 +107,7 @@ private case class InternalNode[K: ClassTag, V] (
         })
     }
 
-    def getRoot: Node[K] = {
+    override def getRoot: Node[K, V] = {
         parent match {
             case Some(p) => p match {
                 case in: InternalNode[K, V] => in.getRoot
@@ -128,17 +117,14 @@ private case class InternalNode[K: ClassTag, V] (
         }
     }
 
-    def get(k: K)(implicit cmp: (K, K) => Int): Option[V] = {
+    override def get(k: K): Option[V] = {
         for (i <- 0 until numKeys) {
             keys(i) match {
                 case Some(ky) => {
-                    if (cmp(k, ky) < 0) {
+                    if (k < ky) {
                         children(i) match {
-                            case Some(ch) => ch match {
-                                case inter: InternalNode[K, V] => return inter.get(k)
-                                case leaf: LeafNode[K, V] => return leaf.get(k)
-                            }
-                            case None => throw new RuntimeException("unexpected None in InternalNode#get")
+                          case Some(ch) => return ch.get(k)
+                          case None => throw new RuntimeException("unexpected None in InternalNode#get")
                         }
                     }
                 }
@@ -147,28 +133,19 @@ private case class InternalNode[K: ClassTag, V] (
         }
 
         children(numKeys) match {
-            case Some(ch) => ch match {
-                case inter: InternalNode[K, V] => return inter.get(k)
-                case leaf: LeafNode[K, V] => return leaf.get(k)
-            }
-            case None => throw new RuntimeException("unexpected None in InternalNode#get")
+          case Some(ch) => return ch.get(k)
+          case None => throw new RuntimeException("unexpected None in InternalNode#get")
         }
     }
 
-    def put(k: K, v: V)(implicit cmp: (K, K) => Int): Boolean = {
+    override def put(k: K, v: V): Boolean = {
         for (i <- 0 until numKeys) {
             keys(i) match {
                 case Some(ky) => {
-                    if (cmp(k, ky) < 0) {
+                    if (k < ky) {
                         children(i) match {
-                            case Some(ch) => ch match {
-                                    case inter: InternalNode[K, V] => return inter.put(k, v)
-                                    case leaf: LeafNode[K, V] => return leaf.put(k, v)
-                                }
-                            case None => {
-                                println(s"traversing at $i")
-                                throw new RuntimeException("unexpected None in InternalNode#put")
-                            }
+                          case Some(ch) => return ch.put(k, v)
+                          case None => throw new RuntimeException("unexpected None in InternalNode#put")
                         }
                     }
                 }
@@ -177,24 +154,12 @@ private case class InternalNode[K: ClassTag, V] (
         }
 
         children(numKeys) match {
-            case Some(ch) => ch match {
-                case inter: InternalNode[K, V] => return inter.put(k, v)
-                case leaf: LeafNode[K, V] => return leaf.put(k, v)
-            }
-            // there is not expected be a None, 
-            // numKeys ensures every child within the range is Some
+            case Some(ch) => ch.put(k, v)
             case None => false
         }
     }
 
-    private def isRoot: Boolean = {
-        parent match {
-            case Some(_) => false
-            case None => true
-        }
-    }
-
-    private def split()(implicit cmp: (K, K) => Int): Boolean = {
+    private def split(): Boolean = {
         val split = numKeys / 2
         val splitKey = Some(keys(split).get)
         keys(split) = None
@@ -229,14 +194,13 @@ private case class InternalNode[K: ClassTag, V] (
         true
     }
 
-    private def probeSplitKey(splitKey: K)(implicit cmp: (K, K) => Int): Int = {
-        keys.indexWhere(key => key match {
-            case Some(k) => cmp(splitKey, k) < 0
+    private def probeSplitKey(splitKey: K): Int = keys.indexWhere(key => 
+        key match {
+            case Some(k) => splitKey < k 
             case None => true
         })
-    }
 
-    def putChild(splitKey: K, t: Tuple2[Node[K], Node[K]])(implicit cmp: (K, K) => Int): Boolean = {
+    def putChild(splitKey: K, t: Tuple2[Node[K, V], Node[K, V]]): Boolean = {
         if (numKeys == 0) {
             // this is a new internal node
             keys(0) = Some(splitKey)
@@ -269,32 +233,20 @@ private case class InternalNode[K: ClassTag, V] (
         true
     }
 
-    def assignNewChildren(c: Array[Option[Node[K]]]) = {
+    def assignNewChildren(c: Array[Option[Node[K, V]]]) = {
         children = c
     }
 }
 
-private case class LeafNode[K: ClassTag, V: ClassTag] (
-    private val nodeWidth: Int = 64,
-    override val nodeId: Int = 0,
-    var next: Option[LeafNode[K, V]] = None
-) extends Node[K](nodeWidth + 1, nodeId) {
+private case class LeafNode[K <: Ordering, V: ClassTag] (
+    val nodeWidth: Int = 64,
+    val nodeId: Int = 0,
+    private var next: Option[LeafNode[K, V]] = None
+) extends Node[K, V](nodeWidth + 1, nodeId) {
 
     // one more slot makes shift much simpler
     private var values: Array[Option[V]] = Array.fill[Option[V]](nodeWidth + 1)(None)
     
-
-    override def hasSlot: Boolean = {
-        for (i <- 0 until keys.size - 1) {
-            keys(i) match {
-                case Some(_) =>
-                case None => return true
-            }
-        }
-        false
-    }
-
-
     override def report: Unit = {
         val keysContent = new StringBuffer
         val valuesContent = new StringBuffer
@@ -307,13 +259,6 @@ private case class LeafNode[K: ClassTag, V: ClassTag] (
         println(s"values are: ${valuesContent.toString()}")
     }
 
-    def isRoot: Boolean = {
-        parent match {
-            case Some(_) => false
-            case None => true
-        }
-    }
-
     def exsits(k: K): Boolean = {
         keys.exists(key => key match {
             case Some(k_) => k_ == k
@@ -321,7 +266,7 @@ private case class LeafNode[K: ClassTag, V: ClassTag] (
         })
     }
 
-    def get(k: K)(implicit cmp: (K, K) => Int): Option[V] = {
+    override def get(k: K): Option[V] = {
         for (i <- 0 until numKeys) {
             if (keys(i).get == k)
                 return values(i)
@@ -329,7 +274,7 @@ private case class LeafNode[K: ClassTag, V: ClassTag] (
         None
     }
     
-    def put(k: K, v: V)(implicit cmp: (K, K) => Int): Boolean = {
+    override def put(k: K, v: V): Boolean = {
         if (hasSlot) {
             simplePut(k, v)
         } else {
@@ -337,25 +282,24 @@ private case class LeafNode[K: ClassTag, V: ClassTag] (
         }
     }
 
-    def getRoot: Node[K] = {
+    override def getRoot: Node[K] = {
         if (parent.isEmpty)
             return this
 
         var walk = parent.get
         while(walk.parent.nonEmpty)
             walk = walk.parent.get
-
         walk
     }
 
-    def range(start: K, end: K)(implicit cmp: (K, K) => Int): Array[Option[V]] = {
-        if (cmp(start, end) > 0) {
+    def range(start: K, end: K): Array[Option[V]] = {
+        if (start > end) {
             throw new RuntimeException("range start is greater than end")
         }
 
         val seq = (0 until numKeys).filter(i => {
-            (cmp(keys(i).get, start) > 0 || cmp(keys(i).get, start) == 0) &&
-            (cmp(keys(i).get, end) < 0 || cmp(keys(i).get, end) == 0)
+            val key = keys(i).get
+            (key >= start) || (key <= end)
         })
 
         var ret = new mutable.ArrayBuffer[Option[V]]
@@ -367,7 +311,7 @@ private case class LeafNode[K: ClassTag, V: ClassTag] (
         }
     }
 
-    private def simplePut(k: K, v: V)(implicit cmp: (K, K) => Int): Boolean = {
+    private def simplePut(k: K, v: V): Boolean = {
         // not using hasSlot, since this method is intended to be called
         // when a split is required to insert to 'extra' kv pair into 
         // the leaf to be split
@@ -400,7 +344,7 @@ private case class LeafNode[K: ClassTag, V: ClassTag] (
      * there shall be one more key in newLeaf than 'this'
      * 
      */
-    private def complexPut(k: K, v: V)(implicit cmp: (K, K) => Int): Boolean = {
+    private def complexPut(k: K, v: V): Boolean = {
         simplePut(k, v)
 
         val splitPos = keys.size / 2
