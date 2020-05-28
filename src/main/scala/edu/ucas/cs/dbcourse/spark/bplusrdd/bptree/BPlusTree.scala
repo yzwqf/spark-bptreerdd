@@ -8,7 +8,8 @@ class BPlusTreeConfig (
 )
 
 class BPlusTree[K <: Ordering, V: ClassTag] (
-    private val config: BPlusTreeConfig
+    private val config: BPlusTreeConfig,
+    private val indexedField: String
 ) {
     private var _root = new LeafNode[K, V](config.leafWidth, Counter.inc())
     private var root: Node[K] = _root
@@ -27,6 +28,8 @@ class BPlusTree[K <: Ordering, V: ClassTag] (
 
     def report: Unit =
         root.report
+
+    def indexedBy(field: String): Boolean = indexedField == field
 }
 
 /*

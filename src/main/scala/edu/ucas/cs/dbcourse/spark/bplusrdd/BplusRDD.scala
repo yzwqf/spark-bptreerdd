@@ -17,31 +17,35 @@ object JsonTool {
     (parse(s) \ indexedField).extract[K]
 }
 
-class BplusRDDPartition[K <: Ordering]() {
-  private val bpTree = new BPlusTree[K, String](new BPlusTreeConfig())
+class BplusRDDPartition[K <: Ordering](private val indexedField: String) {
+  private val bpTree = new BPlusTree[K, String](new BPlusTreeConfig(), indexedField)
 
   def buildBplusTree(iter: Iterator[String]): this.type = {
     iter.foreach (s => bpTree.put(JsonTool.parseJson[K](s, indexedField), s))
     this
   }
+
+  def iterator: Iterator[String] = new BPTIterator[K, V](bpTree) 
 }
 
 object BplusRDDPartition {
   def apply[K <: Ordering](iter: Iterator[String], indexedField: String) =
-    new BplusRDDPartition().buildBplusTree(iter)
+    new BplusRDDPartition(indexedField).buildBplusTree(iter)
 }
 
-class BplusRDD[K <: Ordering](
-    private val prev: RDD[BplusRDDPartition[K]], 
-    private val indexedField: String): 
+// filter: BplusRDDPartition.iterator.filter(cleanF)
+class BplusRDD[K <: Ordering](private val prev: RDD[BplusRDDPartition[K]]):
   extends RDD[String](prev.context, List(new OneToOneDependency(prev))) {
 
   override val partitioner = prev.partitioner
   override protected def getPartitions: Array[Partition] = prev.partitions
+
+  override def compute(split: Partition, context: TaskContext): Iterator[String] = 
+    firstParent[BplusRDDPartition[K]].iterator(split, context).next.iterator
 }
 
 object BplusRDD {
   def apply[K <: Ordering](src: RDD[String], indexedField: String) = 
     new BplusRDD(src.mapPartitions[BplusRDDPartition[K]](
-      iter => Iterator(BplusRDDPartition[K](iter, indexedField)), preservesPartitioning = true), indexedField)
+      iter => Iterator(BplusRDDPartition[K](iter, indexedField)), preservesPartitioning = true))
 }
