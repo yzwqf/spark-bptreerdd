@@ -16,7 +16,7 @@ object Counter {
 }
 
 private abstract class Node[K : Ordering, V: ClassTag] (
-    private val nodeWidth: Int = 64,
+    val nodeWidth: Int = 64,
     val nodeId: Int = 0
 ) {
     protected var keys: Array[Option[K]] = Array.fill[Option[K]](nodeWidth)(None)
@@ -240,14 +240,16 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
     }
 }
 
-private case class LeafNode[K : Ordering, V: ClassTag] (
+case class LeafNode[K : Ordering, V: ClassTag] (
     val nodeWidth: Int = 64,
     val _nodeId: Int = 0,
-    private var next: Option[LeafNode[K, V]] = None
+    var next: Option[LeafNode[K, V]] = None
 ) extends Node[K, V](nodeWidth + 1, _nodeId) {
 
     // one more slot makes shift much simpler
     private var values: Array[Option[V]] = Array.fill[Option[V]](nodeWidth + 1)(None)
+
+    def values(i: Int) = values(i)
     
     override def report: Unit = {
         val keysContent = new StringBuffer

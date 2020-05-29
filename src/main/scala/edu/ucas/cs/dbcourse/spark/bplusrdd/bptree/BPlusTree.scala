@@ -30,6 +30,9 @@ class BPlusTree[K : Ordering, V: ClassTag] (
         root.report
 
     def indexedBy(field: String): Boolean = indexedField == field
+    def firstEqualTo(key: K): Tuple[Option[LeafNode[K, V]], Int]
+    def firstGreaterThan(key: K): Tuple[Option[LeafNode[K, V]]. Int]
+    def firstLeaf: Tuple[Option[LeafNode[K, V]], Int]
 }
 
 object BPTree {

@@ -34,7 +34,7 @@ object BplusRDDPartition {
 }
 
 // filter: BplusRDDPartition.iterator.filter(cleanF)
-class BplusRDD[K : Ordering](private val prev: RDD[BplusRDDPartition[K]]):
+class BplusRDD[K : Ordering](private val prev: RDD[BplusRDDPartition[K]])
   extends RDD[String](prev.context, List(new OneToOneDependency(prev))) {
 
   override val partitioner = prev.partitioner
