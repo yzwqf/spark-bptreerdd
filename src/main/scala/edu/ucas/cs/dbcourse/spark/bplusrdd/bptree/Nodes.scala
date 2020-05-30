@@ -68,6 +68,7 @@ abstract class Node[K : Ordering, V: ClassTag] (
 
   def get(k: K): Option[V]
   def put(k: K, v: V): Boolean
+  def range(s: K, e: K): Array[Option[V]]
   def getRoot: Node[K, V]
   def report: Unit
 
@@ -121,13 +122,17 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
     }
   }
 
-  override def get(k: K): Option[V] = {
+  def searchForLeaf(key: K): LeafNode[K, V] = {
+    // println(s"*** internal node $nodeId is searching leaf")
     for (i <- 0 until numKeys) {
       keys(i) match {
         case Some(ky) => {
-          if (k < ky) {
+          if (key < ky) {
             children(i) match {
-              case Some(ch) => return ch.get(k)
+              case Some(ch) => ch match {
+                case leaf: LeafNode[K, V] => return leaf
+                case inter: InternalNode[K, V] => return inter.searchForLeaf(key)
+              }
               case None => throw new RuntimeException("unexpected None in InternalNode#get")
             }
           }
@@ -137,31 +142,23 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
     }
 
     children(numKeys) match {
-      case Some(ch) => return ch.get(k)
+      case Some(ch) => ch match {
+        case leaf: LeafNode[K, V] => leaf
+        case inter: InternalNode[K, V] => inter.searchForLeaf(key)
+      }
       case None => throw new RuntimeException("unexpected None in InternalNode#get")
     }
   }
 
-  override def put(k: K, v: V): Boolean = {
-    for (i <- 0 until numKeys) {
-      keys(i) match {
-        case Some(ky) => {
-          if (k < ky) {
-            children(i) match {
-              case Some(ch) => return ch.put(k, v)
-              case None => throw new RuntimeException("unexpected None in InternalNode#put")
-            }
-          }
-        }
-        case None => throw new RuntimeException("unexpected None in InternalNode#put")
-      }
-    }
 
-    children(numKeys) match {
-      case Some(ch) => ch.put(k, v)
-      case None => false
-    }
-  }
+  override def get(k: K): Option[V] = searchForLeaf(k).get(k)
+  
+
+  override def put(k: K, v: V): Boolean = searchForLeaf(k).put(k, v)
+
+
+  override def range(start: K, end: K): Array[Option[V]] = 
+    searchForLeaf(start).range(start, end)
 
   private def split(): Boolean = {
     val split = numKeys / 2
@@ -241,9 +238,13 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
     children = c
   }
 
-  override def firstEqualTo(key: K): Tuple2[Option[LeafNode[K, V]], Int]
 
-  override def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int]
+  override def firstEqualTo(key: K): Tuple2[Option[LeafNode[K, V]], Int] =
+    searchForLeaf(key).firstEqualTo(key)
+
+
+  override def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int] =
+    searchForLeaf(key).firstGreaterThan(key)
 }
 
 case class LeafNode[K : Ordering, V: ClassTag] (
@@ -260,7 +261,7 @@ case class LeafNode[K : Ordering, V: ClassTag] (
   override def report: Unit = {
     val keysContent = new StringBuffer
     val valuesContent = new StringBuffer
-    println(s"leaf node $nodeId reporting")
+    println(s"leaf node $nodeId reporting, numKeys: $numKeys")
     for(i <- 0 until numKeys) {
       keysContent.append(keys(i).get + " ")
       valuesContent.append(values(i).get + " ")
@@ -302,10 +303,11 @@ case class LeafNode[K : Ordering, V: ClassTag] (
     walk
   }
 
-  def range(start: K, end: K): Array[Option[V]] = {
+  override def range(start: K, end: K): Array[Option[V]] = {
     def range_accumulator(node: LeafNode[K, V], start: K, end: K, ret: mutable.ArrayBuffer[Option[V]], ct: Int): Unit = {
-      val seq = (0 until numKeys).filter(i => {
+      val seq = (0 until node.numKeys).filter(i => {
         val key = node.keys(i).get
+        // println(s"getting key ${key}")
         (key >= start) && (key <= end)
       })
 
@@ -392,6 +394,23 @@ case class LeafNode[K : Ordering, V: ClassTag] (
     true
   }
 
-  override def firstEqualTo(key: K): Tuple2[Option[LeafNode[K, V]], Int]
-  override def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int]
+  override def firstEqualTo(key: K): Tuple2[Option[LeafNode[K, V]], Int] = {
+    for (i <- 0 until numKeys) {
+      if (keys(i).get >= key) 
+        return (Some(this), i)
+    }
+
+    // if this function is called
+    // next is to be Some, unless it is call
+    return (next, 0)
+  }
+
+  override def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int] = {
+    for (i <- 0 until numKeys) {
+      if (keys(i).get > key)
+        return (Some(this), i)
+    }
+
+    return (next, 0)
+  }
 }
