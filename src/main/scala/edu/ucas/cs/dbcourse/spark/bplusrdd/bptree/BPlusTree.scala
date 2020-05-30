@@ -31,16 +31,16 @@ class BPlusTree[K : Ordering, V: ClassTag] (
 
   def indexedBy(field: String): Boolean = indexedField == field
 
-  // return the first element who == key, if there is no such element, returns the least element > key
+  // return the first element who == key, if there is no such element, returns the least element > key, if key > the largest element in bptree, returns (None, 0)
   def firstEqualTo(key: K): Tuple2[Option[LeafNode[K, V]], Int] = root firstEqualTo key
-  // return the first element who > key
+  // return the first element who > key, if key > the largest element in bptree, returns (None, 0)
   def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int] = root firstGreaterThan key
   def firstLeafNode: Tuple2[Option[LeafNode[K, V]], Int] = (Some(firstLeaf), 0)
 }
 
 object BPTree {
   def main(args: Array[String]): Unit = {
-    val l = new BPlusTree[Int, Int](new BPlusTreeConfig(3, 3), "")
+    val l = new BPlusTree[Int, Int](new BPlusTreeConfig, "")
     println("inserting")
     val data = 1 to args(0).toInt
     val ans = data.fold(0)(_ + _)
@@ -48,33 +48,15 @@ object BPTree {
     data.foreach(d => {
       l.put(d, d)
     })
+    println("build b+tree success!")
 
-    println("retrieving")
-    var sum = 0
-    data.foreach(d => sum += l.get(d).get)
-    if (sum == ans) {
-      println("put & get test passed")
-    } else {
-      println("put & get test failed")
-    }
-
-    //println("testing range")
-    //l.range(1, 10000).foreach(v => {
-    //  println(v.get)
-    //})
-
-    val lt:Int = 20
+    val low:Int = 99928
+    val high:Int = 2089
     println("testing BptSeqIerator")
-    //val iter = new ProxyIterator(l).filter(new FilterFunction( "a", _ <= lt, BptFilterOperator.LE, lt))
-    val iter = new ProxyIterator[Int, Int](l).filter(_ % 2 == 0)
-    sum = 0
+    val iter = new ProxyIterator[Int, Int](l).filter(new FilterFunction( "", _ <= low, BptFilterOperator.GE, low, high))
+    //val iter = new ProxyIterator(l).filter(_ <= low)
+    var sum = 0
     iter.foreach(d => sum += d)
     println(sum)
-    println((1 to lt).sum)
-    if (sum == (1 to lt).sum) {
-      println("iterator test passed")
-    } else {
-      println("iterator test failed")
-    }
   }
 }

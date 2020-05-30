@@ -21,36 +21,24 @@ class BptSeqIerator[K : Ordering, V : ClassTag](
     case _ => true
   }
 
-  protected def over(): Unit = {
+  protected def over: Boolean = {
     finished = true
+    false
   }
 
-  /**
-   * Method for subclasses to implement to provide the next element.
-   *
-   * If no next element is available, the subclass should set `finished`
-   * to `true` and may return any value (it will be ignored).
-   *
-   * This convention is required because `null` may be a valid value,
-   * and using `Option` seems like it might create unnecessary Some/None
-   * instances, given some iterators might be called in a tight loop.
-   *
-   * @return V, or set 'finished' when done
-   */
-  def getNext(): Unit = nextNode match {
+  def getNext(): Boolean = nextNode match {
     case Some(rn) =>
-      if (pos < rn.nodeWidth - 1) {
-        rn.values(pos) match {
-          case Some(value) => {
-            pos = pos + 1
-            nextValue = value
-          }
-          case _ => over
+      rn.values(pos) match {
+        case Some(value) => {
+          pos = pos + 1
+          nextValue = value
+          true
         }
-      } else {
-        nextNode = rn.next
-        pos = 0
-        getNext
+        case _ => {
+          nextNode = rn.next
+          pos = 0
+          false
+        }
       }
     case _ => over
   }
@@ -70,7 +58,9 @@ class BptSeqIerator[K : Ordering, V : ClassTag](
   override def hasNext: Boolean = {
     if (!finished) {
       if (!gotNext) {
-        getNext
+        var flag = getNext
+        while (!flag && !finished)
+          flag = getNext
         if (finished) {
           closeIfNeeded()
         }
@@ -94,21 +84,20 @@ class BptPredIerator[K : Ordering, V: ClassTag] (
                                                   private val pred: K => Boolean
                                                 ) extends BptSeqIerator[K, V](nextNodeAndPos) {
 
-  override def getNext(): Unit = nextNode match {
+  override def getNext(): Boolean = nextNode match {
     case Some(rn) =>
-      if (pos < rn.nodeWidth - 1) {
-        rn.getKey(pos) match {
-          case Some(key) if pred(key) => {
+      rn.keys(pos) match {
+        case Some(key) => if (pred(key)) {
             val value = rn.values(pos).get
             pos = pos + 1
             nextValue = value
-          }
-          case _ => over
+            true
+          } else over
+        case _ => {
+          nextNode = rn.next
+          pos = 0
+          false
         }
-      } else {
-        nextNode = rn.next
-        pos = 0
-        getNext
       }
     case _ => over
   }
@@ -120,21 +109,26 @@ class BptValIerator[K : Ordering, V : ClassTag] (
                          private val pred: V => Boolean
                        ) extends BptSeqIerator[K, V](nextNodeAndPos) {
 
-  override def getNext(): Unit = nextNode match {
-    case Some(rn) =>
-      if (pos < rn.nodeWidth - 1) {
-        val ppos = pos
-        pos = pos + 1
-        rn.values(ppos) match {
-          case Some(v) if pred(v) => { nextValue = v }
-          case _ => getNext
+  override def getNext(): Boolean = {
+    while (true) {
+      nextNode match {
+        case Some(rn) => rn.values(pos) match {
+          case Some(v) => {
+            pos = pos + 1
+            if (pred(v)) {
+              nextValue = v
+              return true
+            }
+          }
+          case _ => {
+            pos = 0
+            nextNode = rn.next
+          }
         }
-      } else {
-        nextNode = rn.next
-        pos = 0
-        getNext
+        case _ => return over
       }
-    case _ => over
+    }
+    over
   }
 }
 

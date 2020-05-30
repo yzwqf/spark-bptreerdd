@@ -18,7 +18,7 @@ abstract class Node[K : Ordering, V: ClassTag] (
                                                  nodeWidth: Int = 64,
                                                  val nodeId: Int = 0
                                                ) {
-  protected var keys: Array[Option[K]] = Array.fill[Option[K]](nodeWidth)(None)
+  var keys: Array[Option[K]] = Array.fill[Option[K]](nodeWidth)(None)
   protected var numKeys:  Int = 0
   var parent: Option[Node[K, V]] = None
 
@@ -72,7 +72,7 @@ abstract class Node[K : Ordering, V: ClassTag] (
   def report: Unit
 
   def firstEqualTo(key: K): Tuple2[Option[LeafNode[K, V]], Int]
-  def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int]]
+  def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int]
 }
 
 private case class InternalNode[K : Ordering, V: ClassTag] (
@@ -242,7 +242,8 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
   }
 
   override def firstEqualTo(key: K): Tuple2[Option[LeafNode[K, V]], Int]
-  override def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int]]
+
+  override def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int]
 }
 
 case class LeafNode[K : Ordering, V: ClassTag] (
@@ -392,5 +393,5 @@ case class LeafNode[K : Ordering, V: ClassTag] (
   }
 
   override def firstEqualTo(key: K): Tuple2[Option[LeafNode[K, V]], Int]
-  override def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int]]
+  override def firstGreaterThan(key: K): Tuple2[Option[LeafNode[K, V]], Int]
 }
