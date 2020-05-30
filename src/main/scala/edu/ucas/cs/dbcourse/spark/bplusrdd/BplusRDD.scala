@@ -25,7 +25,7 @@ class BplusRDDPartition[K : Ordering](private val indexedField: String) {
     this
   }
 
-  def iterator: Iterator[String] = new BPTIterator[K, V](bpTree) 
+  def iterator: Iterator[String] = new ProxyIterator[K, V](bpTree) 
 }
 
 object BplusRDDPartition {
