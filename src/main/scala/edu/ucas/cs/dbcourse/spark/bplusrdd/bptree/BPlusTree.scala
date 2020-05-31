@@ -1,18 +1,21 @@
 package main.scala.edu.ucas.cs.dbcourse.spark.bplusrdd.bptree
 
 import scala.reflect.ClassTag
-
 import scala.Ordered._
+
+
+import java.io.FileOutputStream
+import java.io.ObjectOutputStream
 
 class BPlusTreeConfig (
                         val internalWidth: Int = 64,
                         val leafWidth: Int = 64
-                      )
+                      ) extends Serializable
 
 class BPlusTree[K : Ordering, V: ClassTag] (
                                              private val config: BPlusTreeConfig,
                                              private val indexedField: String
-                                           ) {
+                                           ) extends Serializable {
   private val _root = new LeafNode[K, V](config.leafWidth, Counter.inc())
   private var root: Node[K, V] = _root
   private val firstLeaf = _root
@@ -110,15 +113,11 @@ object BPTree {
     val kter = new ProxyIterator[Int, Int](l).filter(new FilterFunction("", _ <= low, BptFilterOperator.GE, high, high))
     kter.foreach {x => cnt = cnt + 1}
     println(cnt == (100000-high)+1)
-    /*
-    val low:Int = 99928
-    val high:Int = 2089
-    println("testing BptSeqIerator")
-    val iter = new ProxyIterator[Int, Int](l).filter(new FilterFunction( "", _ <= low, BptFilterOperator.GE, low, high))
-    //val iter = new ProxyIterator(l).filter(_ <= low)
-    
-    iter.foreach(d => sum += d)
-    println(sum)
-    */
+
+    println("Serializability test")
+    val fos = new FileOutputStream("../serializableTest.tmp")
+    val oos = new ObjectOutputStream(fos)
+    oos.writeObject(l)
+    oos.close
   }
 }
