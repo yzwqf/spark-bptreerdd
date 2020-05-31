@@ -14,10 +14,11 @@ object Counter {
   }
 }
 
+@SerialVersionUID(456L)
 abstract class Node[K : Ordering, V: ClassTag] (
                                                  nodeWidth: Int = 64,
                                                  val nodeId: Int = 0
-                                               ) {
+                                               ) extends Serializable {
   var keys: Array[Option[K]] = Array.fill[Option[K]](nodeWidth)(None)
   protected var numKeys:  Int = 0
   var parent: Option[Node[K, V]] = None
@@ -83,6 +84,10 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
 
   // one more slot for making shift easier
   // one more slot to fulfill structural requirements of B+ tree
+  def this() {
+    this(64, 0)
+  }
+
   private var children: Array[Option[Node[K, V]]] =
   Array.fill[Option[Node[K, V]]](nodeWidth + 2)(None)
 
@@ -253,6 +258,9 @@ case class LeafNode[K : Ordering, V: ClassTag] (
                                                  var next: Option[LeafNode[K, V]] = None
                                                ) extends Node[K, V](nodeWidth + 1, _nodeId) {
 
+  def this() {
+    this(64, 0, None)
+  }
   // one more slot makes shift much simpler
   private[bptree] var values: Array[Option[V]] = Array.fill[Option[V]](nodeWidth + 1)(None)
 

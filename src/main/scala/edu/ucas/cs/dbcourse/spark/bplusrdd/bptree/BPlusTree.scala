@@ -4,14 +4,15 @@ import scala.reflect.ClassTag
 import scala.Ordered._
 
 
-import java.io.FileOutputStream
-import java.io.ObjectOutputStream
+import java.io._
 
+@SerialVersionUID(321L)
 class BPlusTreeConfig (
                         val internalWidth: Int = 64,
                         val leafWidth: Int = 64
                       ) extends Serializable
 
+@SerialVersionUID(123L)
 class BPlusTree[K : Ordering, V: ClassTag] (
                                              private val config: BPlusTreeConfig,
                                              private val indexedField: String
@@ -115,9 +116,24 @@ object BPTree {
     println(cnt == (100000-high)+1)
 
     println("Serializability test")
-    val fos = new FileOutputStream("../serializableTest.tmp")
+    val fos = new FileOutputStream("serializableTest.tmp")
     val oos = new ObjectOutputStream(fos)
     oos.writeObject(l)
     oos.close
+
+    val fis = new FileInputStream("serializableTest.tmp")
+    val ois = new ObjectInputStream(fis)
+    val t = ois.readObject().asInstanceOf[BPlusTree[Int, Int]]
+
+    println("Deserialiing")
+    sum = 0
+    data.foreach(d => {
+      sum += t.get(d).get
+    })
+    if (sum == ans) {
+      println("Serialization succeeded")
+    } else {
+      println("Serialization failed")
+    }
   }
 }
