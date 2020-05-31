@@ -11,19 +11,19 @@ class  IndexInputFormat extends TextInputFormat {
   : RecordReader[LongWritable, Text] = super.getRecordReader(genericSplit, job, reporter)
 
   def getIndexRecorder(genericSplit: InputSplit, job: JobConf,
-    reporter: Reporter, Position: List[Int]): RecordReader[LongWritable, Text] = {
+    reporter: Reporter, Position: List[Long]): RecordReader[LongWritable, Text] = {
     val split : FileSplit = genericSplit.asInstanceOf[FileSplit];
     new LineRecordReaderWithFilter(job, split, Position)
   }
 }
 
-class LineRecordReaderWithFilter(job: JobConf, split: FileSplit, filter: List[Int])
+class LineRecordReaderWithFilter(job: JobConf, split: FileSplit, filter: List[Long])
                                             extends RecordReader[LongWritable, Text]{
-  val start : Long = split.getStart()
-  val end : Long = start + split.getLength()
+//  val start : Long = split.getStart()
+//  val end : Long = start + split.getLength()
   val file : Path = split.getPath()
   val fs : FileSystem = file.getFileSystem(job)
-  val LineNeedOffest : List[Int] = filter
+  val LineNeedOffest : List[Long] = filter
   var index : Int = 0
   var inStream : FSDataInputStream = fs.open(file)
   def createKey(): LongWritable = {

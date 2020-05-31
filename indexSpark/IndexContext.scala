@@ -3,7 +3,7 @@ package org.apache.spark.examples.indexSpark
 
 import org.apache.hadoop.fs.FileSystem
 
-import scala.reflect.ClassTag
+import scala.reflect.{ClassTag, Manifest}
 import org.apache.spark._
 import org.apache.spark.rdd.{HadoopRDD, RDD}
 import org.apache.hadoop.io.{LongWritable, Text}
@@ -16,12 +16,16 @@ class IndexContext(conf : SparkConf) extends SparkContext(conf : SparkConf) {
   def IndexFilterFile[K : Ordering, V: ClassTag](
                        path: String,
                        bplusTreePath: String,
-                       minPartitions: Int = defaultMinPartitions): RDD[String] = withScope {
+                       build_tree: Boolean = false,
+                       key: String = null,
+                       minPartitions: Int = defaultMinPartitions)
+  (implicit m: Manifest[K]): RDD[(LongWritable, Text)] = withScope {
     assertNotStopped()
-//    println("hahahhah")
-    hadoopIndexFile[ LongWritable, Text, K, V](path, bplusTreePath,
+    hadoopIndexFile[LongWritable, Text, K, V](path, bplusTreePath,
       classOf[IndexInputFormat], classOf[LongWritable], classOf[Text],
-      minPartitions).map(pair => pair._2.toString).setName(path)
+      build_tree,
+      key,
+      minPartitions).setName(path)
   }
 
   def hadoopIndexFile[K, V, BK : Ordering, BV: ClassTag](path: String,
@@ -29,7 +33,10 @@ class IndexContext(conf : SparkConf) extends SparkContext(conf : SparkConf) {
                             inputFormatClass: Class[_ <: InputFormat[K, V]],
                             keyClass: Class[K],
                             valueClass: Class[V],
-                            minPartitions: Int = defaultMinPartitions): RDD[(K, V)] = withScope {
+                            build_tree: Boolean = false,
+                            key: String = null,
+                            minPartitions: Int = defaultMinPartitions)
+  (implicit m: Manifest[BK]): RDD[(K, V)] = withScope {
 
     assertNotStopped()
     FileSystem.getLocal(hadoopConfiguration)
@@ -40,6 +47,8 @@ class IndexContext(conf : SparkConf) extends SparkContext(conf : SparkConf) {
     new BplusHadoopRDD[K, V, BK, BV](
       this,
       bplusTreePath,
+      build_tree,
+      key,
       confBroadcast,
       Some(setInputPathsFunc),
       inputFormatClass,

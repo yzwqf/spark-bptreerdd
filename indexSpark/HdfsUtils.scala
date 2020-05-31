@@ -52,12 +52,14 @@ object HdfsUtils {
       val  d : BufferedReader = new BufferedReader(new  InputStreamReader(inStream) )
       d.readLine()
     } catch {
-      case e: IOException => e.printStackTrace(); ""
+      case e: IOException => e.printStackTrace(); return null;
     } finally {
 
     }
 
   }
+
+
 
 
   def main(args: Array[String]) {
