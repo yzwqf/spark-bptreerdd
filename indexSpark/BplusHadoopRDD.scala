@@ -32,7 +32,7 @@ private class BplusHadoopRDDPartition[BK: Ordering, BV: ClassTag]
   (rddId: Int, override val index: Int, s: InputSplit)
   extends HadoopPartition(rddId, index, s) {
 //  var bTree: BPlusTree[BK, BV] = new BPlusTree[BK, BV](new BPlusTreeConfig(3, 3), "");
-
+  var hadoopPartition : Partition = null
 }
 
 class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](

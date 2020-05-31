@@ -62,7 +62,7 @@ import org.apache.spark.util.{NextIterator, SerializableConfiguration, ShutdownH
  * `org.apache.spark.SparkContext.BplusHadoopLoader()`
  */
 @DeveloperApi
-class BplusHadoopLoader[U: ClassTag, K, V, BK, BV](
+class BplusHadoopLoader[U: ClassTag, K, V, BK: Ordering, BV: ClassTag](
     var prev: RDD[U],
     start : BK,
     end : BK,
@@ -94,7 +94,7 @@ class BplusHadoopLoader[U: ClassTag, K, V, BK, BV](
   private val ignoreEmptySplits = sparkContext.conf.get(HADOOP_RDD_IGNORE_EMPTY_SPLITS)
 
 
-  override def getPartitions: Array[Partition] = firstParent[BPlusTree[BK, BV]].partitions
+//  override def getPartitions: Array[Partition] = firstParent[U].partitions
   override def clearDependencies() {
     super.clearDependencies()
     prev = null
@@ -156,32 +156,35 @@ class BplusHadoopLoader[U: ClassTag, K, V, BK, BV](
     newInputFormat
   }
 
-//  override def getPartitions: Array[Partition] = {
-//    val jobConf = getJobConf()
-//    // add the credentials here as this can be called before SparkContext initialized
-//    SparkHadoopUtil.get.addCredentials(jobConf)
-//    try {
-//      val allInputSplits = getInputFormat(jobConf).getSplits(jobConf, minPartitions)
-//      val inputSplits = if (ignoreEmptySplits) {
-//        allInputSplits.filter(_.getLength > 0)
-//      } else {
-//        allInputSplits
-//      }
-//      val array = new Array[Partition](inputSplits.size)
-//      for (i <- 0 until inputSplits.size) {
-//        array(i) = new BplusHadoopLoaderPartition(id, i, inputSplits(i))
-//      }
-//      array
-//    } catch {
-//      case e: InvalidInputException if ignoreMissingFiles =>
-//        logWarning(s"${jobConf.get(FileInputFormat.INPUT_DIR)} doesn't exist and no" +
-//            s" partitions returned from this path.", e)
-//        Array.empty[Partition]
-//    }
-//  }
+  override def getPartitions: Array[Partition] = {
+    val jobConf = getJobConf()
+    // add the credentials here as this can be called before SparkContext initialized
+    SparkHadoopUtil.get.addCredentials(jobConf)
+    try {
+      val allInputSplits = getInputFormat(jobConf).getSplits(jobConf, minPartitions.max(firstParent[U].partitions.length) )
+      val inputSplits = if (ignoreEmptySplits) {
+        allInputSplits.filter(_.getLength > 0)
+      } else {
+        allInputSplits
+      }
+      val array = new Array[Partition](inputSplits.size)
+      for (i <- 0 until inputSplits.size) {
+        array(i) = new BplusHadoopRDDPartition[BK, BV](id, i, inputSplits(i))
+        array(i).asInstanceOf[BplusHadoopRDDPartition[BK, BV]].hadoopPartition
+          = firstParent[U].partitions(i)
+      }
+      array
+    } catch {
+      case e: InvalidInputException if ignoreMissingFiles =>
+        logWarning(s"${jobConf.get(FileInputFormat.INPUT_DIR)} doesn't exist and no" +
+            s" partitions returned from this path.", e)
+        Array.empty[Partition]
+    }
+  }
 
   override def compute(theSplit: Partition, context: TaskContext): InterruptibleIterator[(K, V)] = {
-    val a = firstParent[U].iterator(theSplit, context)
+
+    val a = firstParent[U].iterator(theSplit.asInstanceOf[BplusHadoopRDDPartition[BK, BV]].hadoopPartition, context)
     var postions : List[Long] = Nil
     while (a.hasNext) {
       val btree = a.next().asInstanceOf[BPlusTree[BK, BV]]
@@ -189,12 +192,11 @@ class BplusHadoopLoader[U: ClassTag, K, V, BK, BV](
       println(end.isInstanceOf[Long])
       btree.range(start, end).foreach(
         x => postions = (postions:+ x.get.asInstanceOf[Long])
-//        x => println(x.get)
       )
-//      postions.foreach(x => {println("_______________"); println(x)})
+      postions.foreach(x => {println("_______________"); println(x)})
     }
     val iter = new NextIterator[(K, V)] {
-      private val split = theSplit.asInstanceOf[HadoopPartition ]
+      private val split = theSplit.asInstanceOf[HadoopPartition]
       logInfo("Input split: " + split.inputSplit)
       private val jobConf = getJobConf()
 

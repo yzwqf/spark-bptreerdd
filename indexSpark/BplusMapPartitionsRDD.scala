@@ -2,13 +2,15 @@
 package org.apache.spark.examples.indexSpark
 
 import org.apache.hadoop.fs.FileSystem
-import org.apache.hadoop.io.{BytesWritable, LongWritable, NullWritable, Text}
-import org.apache.hadoop.mapred.{FileInputFormat, JobConf}
-import org.apache.spark.rdd.{DeterministicLevel, MapPartitionsRDD, RDD}
+import org.apache.hadoop.io.compress.CompressionCodec
+import org.apache.hadoop.io.{BytesWritable, LongWritable, NullWritable, Text, Writable}
+import org.apache.hadoop.mapred.{FileInputFormat, JobConf, SequenceFileOutputFormat}
+import org.apache.spark.internal.Logging
+import org.apache.spark.rdd.{DeterministicLevel, MapPartitionsRDD, RDD, SequenceFileRDDFunctions}
 import org.apache.spark.util.{SerializableConfiguration, Utils}
 
 import scala.reflect.ClassTag
-import org.apache.spark.{Partition, SparkContext, TaskContext}
+import org.apache.spark.{Partition, SparkContext, TaskContext, WritableFactory}
 
 /**
  * An RDD that applies the provided function to every partition of the parent RDD.
@@ -34,30 +36,44 @@ private[spark] class BplusMapPartitionsRDD[U: ClassTag, T: ClassTag](
   extends MapPartitionsRDD[U, T](prev, f, preservesPartitioning, isFromBarrier, isOrderSensitive) {
   override def getPartitions: Array[Partition] = firstParent[T].partitions
 
-  def mymapPartitions[V: ClassTag]( sc: SparkContext,
-                                  f: Iterator[U] => Iterator[V],
+//  def mymapPartitions[V: ClassTag]( sc: SparkContext,
+//                                  f: Iterator[U] => Iterator[V],
+//
+//                                  preservesPartitioning: Boolean = false): RDD[V] = withScope {
+//    val cleanedF = sc.clean(f)
+//    new BplusMapPartitionsRDD[V, U](
+//      this,
+//      (context: TaskContext, index: Int, iter: Iterator[U]) => cleanedF(iter),
+//      preservesPartitioning)
+//  }
 
-                                  preservesPartitioning: Boolean = false): RDD[V] = withScope {
-    val cleanedF = sc.clean(f)
-    new BplusMapPartitionsRDD[V, U](
-      this,
-      (context: TaskContext, index: Int, iter: Iterator[U]) => cleanedF(iter),
-      preservesPartitioning)
+//  def mysaveAsObjectFile(path: String, sc: SparkContext): Unit = withScope {
+//    var rdd = mymapPartitions(sc, iter => iter.grouped(10).map(_.toArray))
+//      .asInstanceOf[BplusMapPartitionsRDD[Array[U], U]]
+//      .mymap(x => (NullWritable.get(), new BytesWritable(Utils.serialize(x))))
+//      rdd.mysaveAsSequenceFile(path)
+//  }
+
+
+
+//  implicit def myrddToSequenceFileRDDFunctions[K, V](rdd: RDD[(K, V)])
+//                                                  (implicit kt: ClassTag[K], vt: ClassTag[V],
+//                                                   keyWritableFactory: WritableFactory[K],
+//                                                   valueWritableFactory: WritableFactory[V])
+//  : mySequenceFileRDDFunctions[K, V] = {
+//    implicit val keyConverter = keyWritableFactory.convert
+//    implicit val valueConverter = valueWritableFactory.convert
+//    new mySequenceFileRDDFunctions(rdd,
+//      keyWritableFactory.writableClass(kt), valueWritableFactory.writableClass(vt))
+//  }
+
+
+
+  def mymap[V: ClassTag]( f: U => V): RDD[V] = withScope {
+//    val cleanF = sc.clean(f)
+    new BplusMapPartitionsRDD[V, U](this, (context, pid, iter) => iter.map(f))
   }
-
-  def mysaveAsObjectFile(path: String, sc: SparkContext): Unit = withScope {
-    mymapPartitions(sc, iter => iter.grouped(10).map(_.toArray))
-      .asInstanceOf[BplusMapPartitionsRDD[Array[U], U]]
-      .mymap(sc, x => (NullWritable.get(), new BytesWritable(Utils.serialize(x))))
-      .saveAsSequenceFile(path)
-  }
-
-
-  def mymap[V: ClassTag](sc: SparkContext, f: U => V): RDD[V] = withScope {
-    val cleanF = sc.clean(f)
-    new BplusMapPartitionsRDD[V, U](this, (context, pid, iter) => iter.map(cleanF))
-  }
-  def get_data[BK: ClassTag, BV : ClassTag](sc: SparkContext,
+  def get_data[BK: Ordering, BV : ClassTag](sc: SparkContext, rdd: RDD[U],
              filePath: String, start: BK, end: BK): RDD[(LongWritable, Text)] = {
     sc.assertNotStopped()
     FileSystem.getLocal(sc.hadoopConfiguration)
@@ -66,7 +82,7 @@ private[spark] class BplusMapPartitionsRDD[U: ClassTag, T: ClassTag](
     val confBroadcast = sc.broadcast(new SerializableConfiguration(sc.hadoopConfiguration))
     val setInputPathsFunc = (jobConf: JobConf) => FileInputFormat.setInputPaths(jobConf, filePath)
     new BplusHadoopLoader[U, LongWritable, Text, BK, BV](
-      this,
+      rdd,
       start,
       end,
       confBroadcast,
@@ -77,3 +93,51 @@ private[spark] class BplusMapPartitionsRDD[U: ClassTag, T: ClassTag](
       sc.defaultMinPartitions).setName(filePath)
   }
 }
+
+//class mySequenceFileRDDFunctions[K <% Writable: ClassTag, V <% Writable : ClassTag](
+//                            self: RDD[(K, V)],
+//                            _keyWritableClass: Class[_ <: Writable],
+//                            _valueWritableClass: Class[_ <: Writable])
+//  extends Logging
+//    with Serializable {
+//
+//  // TODO the context bound (<%) above should be replaced with simple type bound and implicit
+//  // conversion but is a breaking change. This should be fixed in Spark 3.x.
+//
+//  /**
+//   * Output the RDD as a Hadoop SequenceFile using the Writable types we infer from the RDD's key
+//   * and value types. If the key or value are Writable, then we use their classes directly;
+//   * otherwise we map primitive types such as Int and Double to IntWritable, DoubleWritable, etc,
+//   * byte arrays to BytesWritable, and Strings to Text. The `path` can be on any Hadoop-supported
+//   * file system.
+//   */
+//  def mysaveAsSequenceFile(
+//     path: String,
+//     codec: Option[Class[_ <: CompressionCodec]] = None): Unit = self.withScope {
+//    def anyToWritable[U <% Writable](u: U): Writable = u
+//
+//    // TODO We cannot force the return type of `anyToWritable` be same as keyWritableClass and
+//    // valueWritableClass at the compile time. To implement that, we need to add type parameters to
+//    // SequenceFileRDDFunctions. however, SequenceFileRDDFunctions is a public class so it will be a
+//    // breaking change.
+//    val convertKey = self.keyClass != _keyWritableClass
+//    val convertValue = self.valueClass != _valueWritableClass
+//
+//    logInfo("Saving as sequence file of type " +
+//      s"(${_keyWritableClass.getSimpleName},${_valueWritableClass.getSimpleName})" )
+//    val format = classOf[SequenceFileOutputFormat[Writable, Writable]]
+//    val jobConf = new JobConf(self.context.hadoopConfiguration)
+//    if (!convertKey && !convertValue) {
+//      self.saveAsHadoopFile(path, _keyWritableClass, _valueWritableClass, format, jobConf, codec)
+//    } else if (!convertKey && convertValue) {
+//      self.asInstanceOf[BplusMapPartitionsRDD[(K, V), Array[Long]]].mymap(x => (x._1, anyToWritable(x._2))).saveAsHadoopFile(
+//        path, _keyWritableClass, _valueWritableClass, format, jobConf, codec)
+//    } else if (convertKey && !convertValue) {
+//      self.asInstanceOf[BplusMapPartitionsRDD[(K, V), Array[Long]]].mymap(x => (anyToWritable(x._1), x._2)).saveAsHadoopFile(
+//        path, _keyWritableClass, _valueWritableClass, format, jobConf, codec)
+//    } else if (convertKey && convertValue) {
+//      self.asInstanceOf[BplusMapPartitionsRDD[(K, V), Array[Long]]].mymap(x => (anyToWritable(x._1), anyToWritable(x._2))).saveAsHadoopFile(
+//        path, _keyWritableClass, _valueWritableClass, format, jobConf, codec)
+//    }
+//  }
+//}
