@@ -100,12 +100,12 @@ class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](
     new BplusMapPartitionsRDD[BPlusTree[BK, BV], (K, V)](this,
       (context, pid, iter) => {
 //        println("hahaha")
-        var btree : BPlusTree[BK, BV] = new BPlusTree[BK, BV](new BPlusTreeConfig, "");
+        var btree : BPlusTree[BK, BV] = new BPlusTree[BK, BV](new BPlusTreeConfig(512, 512), "");
         while (iter.hasNext) {
           val a = iter.next()
           val BPTreeKey: BK = extractFrom[BK](a._2.toString);
           val BPTreeVal = a._1.asInstanceOf[LongWritable].get().asInstanceOf[BV]
-          println(BPTreeKey)
+//          println(BPTreeKey)
 //          println(BPTreeVal)
           btree.put(BPTreeKey, BPTreeVal)
         }

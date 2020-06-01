@@ -156,6 +156,33 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
     }
   }
 
+  def searchForLeafRange(start: K): LeafNode[K, V] = {
+    for (i <- 0 until numKeys) {
+      keys(i) match {
+        case Some(ky) => {
+          if (start <= ky) { // duplicated keys
+            children(i) match {
+              case Some(ch) => ch match {
+                case leaf: LeafNode[K, V] => return leaf
+                case inter: InternalNode[K, V] => return inter.searchForLeafRange(start)
+              }
+              case None => throw new RuntimeException("unexpected None in InternalNode#get")
+            }
+          }
+        }
+        case None => throw new RuntimeException("unexpected None in InternalNode#get")
+      }
+    }
+
+    children(numKeys) match {
+      case Some(ch) => ch match {
+        case leaf: LeafNode[K, V] => leaf
+        case inter: InternalNode[K, V] => inter.searchForLeafRange(start)
+      }
+      case None => throw new RuntimeException("unexpected None in InternalNode#get")
+    }
+  }
+
 
   override def get(k: K): Option[V] = searchForLeaf(k).get(k)
   
@@ -163,8 +190,10 @@ private case class InternalNode[K : Ordering, V: ClassTag] (
   override def put(k: K, v: V): Boolean = searchForLeaf(k).put(k, v)
 
 
-  override def range(start: K, end: K): Array[Option[V]] = 
-    searchForLeaf(start).range(start, end)
+  override def range(start: K, end: K): Array[Option[V]] = {
+    searchForLeafRange(start).range(start, end)
+  }
+
 
   private def split(): Boolean = {
     val split = numKeys / 2
@@ -277,6 +306,10 @@ case class LeafNode[K : Ordering, V: ClassTag] (
     }
     println(s"keys are: ${keysContent.toString()}")
     println(s"values are: ${valuesContent.toString()}")
+    next match {
+      case Some(ch) => println(s"next is ${ch.nodeId}")
+      case None => println("no next")
+    }
   }
 
   def exsits(k: K): Boolean = {
@@ -327,7 +360,7 @@ case class LeafNode[K : Ordering, V: ClassTag] (
 
       if (node.next.isEmpty)
         return
-
+      // println(s"node ${node.nodeId} visiting next: ${node.next.get.nodeId}")
       range_accumulator(node.next.get, start, end, ret, ct + 1)
     }
 
@@ -379,7 +412,7 @@ case class LeafNode[K : Ordering, V: ClassTag] (
     val splitPos = keys.size / 2
     val splitKey = keys(splitPos)
 
-    val newLeaf = new LeafNode[K, V](nodeWidth, Counter.inc())
+    val newLeaf = new LeafNode[K, V](nodeWidth, Counter.inc(), next)
     for (i <- splitPos until keys.size) {
       newLeaf.simplePut(keys(i).get, values(i).get)
       keys(i) = None

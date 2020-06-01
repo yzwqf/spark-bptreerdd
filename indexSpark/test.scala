@@ -100,22 +100,41 @@ object Test{
       .getOrCreate()
     val JsonPath : String = "hdfs://localhost:9000/hw1-input/test.json"
 //    val path : String = "hdfs://localhost:9000/hw1-input/README.md"
-    val BTreePath : String = "hdfs://localhost:9000/hw1-input/README.md.btree"
-    val data : RDD[(LongWritable, Text)] = spark.sparkContext
-      .asInstanceOf[IndexContext].IndexFilterFile[Long, Long](JsonPath, BTreePath, true, "father.age")
-    val tree_RDD = data.asInstanceOf[BplusHadoopRDD[LongWritable, Text, Long, Long]].build_tree()
-
+    val BTreePath : String = "hdfs://localhost:9000/hw1-input/test.json.btree"
+//    val data : RDD[(LongWritable, Text)] = spark.sparkContext
+//      .asInstanceOf[IndexContext].IndexFilterFile[Long, Long](JsonPath, BTreePath, true, "father.age")
+//    val tree_RDD = data.asInstanceOf[BplusHadoopRDD[LongWritable, Text, Long, Long]].build_tree()
+//
 //      tree_RDD.asInstanceOf[BplusMapPartitionsRDD[BPlusTree[Long, Long], (LongWritable, Text)]]
 //        .saveAsObjectFile(BTreePath)
 
+    var startTime = System.nanoTime
+    var sum1: Long = 0;
+    val tree_RDD: RDD[BPlusTree[Long, Long]] = spark.sparkContext.objectFile(BTreePath).cache()
+    val filterd_data = get_data[BPlusTree[Long, Long], Long, Long](spark.sparkContext, tree_RDD, JsonPath, 35, 36)
+    sum1 = filterd_data.count()
+    var endTime = System.nanoTime
+    println("first tree_RDD : " + (endTime-startTime)/1000000d)
 
-//    val tree_RDD: RDD[BPlusTree[Long, Long]] = spark.sparkContext.objectFile(BTreePath)
-    val filterd_data = get_data[BPlusTree[Long, Long], Long, Long](spark.sparkContext, tree_RDD, JsonPath, 1, 100)
-//
-//    val filterd_data = tree_RDD.asInstanceOf[BplusMapPartitionsRDD[BPlusTree[Long, Long], (LongWritable, Text)]].
-//      get_data[Long, Long](spark.sparkContext, JsonPath, 1, 30)
-    filterd_data.map(x => x._2.toString()).collect().foreach(x => println(x))
 
+    var sum2: Long = 0
+    startTime = System.nanoTime
+    val new_filterd_data = get_data[BPlusTree[Long, Long], Long, Long](spark.sparkContext, tree_RDD, JsonPath, 35, 36)
+    sum2 = new_filterd_data.count()
+    endTime = System.nanoTime
+    println("second tree_RDD, cached: " + (endTime-startTime)/1000000d)
+
+    var sum3: Long = 0
+    startTime = System.nanoTime
+    val dataSet = spark.sparkContext.textFile(JsonPath)
+    sum3 = dataSet.filter(s => {
+      val age = JsonTool.parseJson[Int](s, "father.age")
+      age >= 35 && age <= 36
+    }).count()
+    endTime = System.nanoTime
+    println("first hadoopRDD, cached: " + (endTime-startTime)/1000000d)
+
+    println(sum1 + "," + sum2 + "," + sum3)
 
 //
 //     val a = new_tree_RDD.map(x => x.range(0, 1000).length).collect()

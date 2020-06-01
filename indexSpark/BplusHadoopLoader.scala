@@ -188,12 +188,12 @@ class BplusHadoopLoader[U: ClassTag, K, V, BK: Ordering, BV: ClassTag](
     var postions : List[Long] = Nil
     while (a.hasNext) {
       val btree = a.next().asInstanceOf[BPlusTree[BK, BV]]
-      println(start)
-      println(end.isInstanceOf[Long])
+//      println(start)
+//      println(end.isInstanceOf[Long])
       btree.range(start, end).foreach(
         x => postions = (postions:+ x.get.asInstanceOf[Long])
       )
-      postions.foreach(x => {println("_______________"); println(x)})
+//      println(postions.count(x => true))
     }
     val iter = new NextIterator[(K, V)] {
       private val split = theSplit.asInstanceOf[HadoopPartition]

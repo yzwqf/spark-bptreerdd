@@ -19,8 +19,8 @@ class  IndexInputFormat extends TextInputFormat {
 
 class LineRecordReaderWithFilter(job: JobConf, split: FileSplit, filter: List[Long])
                                             extends RecordReader[LongWritable, Text]{
-//  val start : Long = split.getStart()
-//  val end : Long = start + split.getLength()
+  val start : Long = split.getStart()
+  val end : Long = start + split.getLength()
   val file : Path = split.getPath()
   val fs : FileSystem = file.getFileSystem(job)
   val LineNeedOffest : List[Long] = filter
@@ -35,12 +35,16 @@ class LineRecordReaderWithFilter(job: JobConf, split: FileSplit, filter: List[Lo
   }
 
   def  next(key: LongWritable, value: Text) : Boolean = this.synchronized {
-    if (index < LineNeedOffest.length) {
-      key.set(LineNeedOffest.apply(index))
-      val line_content = HdfsUtils.get_line(inStream, LineNeedOffest.apply(index))
-      value.set(line_content)
-      index = index + 1
-      return true
+    while (index < LineNeedOffest.length) {
+      if (LineNeedOffest.apply(index) >= start && LineNeedOffest.apply(index) <= end) {
+        key.set(LineNeedOffest.apply(index))
+        val line_content = HdfsUtils.get_line(inStream, LineNeedOffest.apply(index))
+        value.set(line_content)
+        index = index + 1
+        return true
+      } else {
+        index = index + 1
+      }
     }
     return false
   }
