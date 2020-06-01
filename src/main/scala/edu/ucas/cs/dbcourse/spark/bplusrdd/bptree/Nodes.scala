@@ -276,6 +276,10 @@ case class LeafNode[K : Ordering, V: ClassTag] (
     }
     println(s"keys are: ${keysContent.toString()}")
     println(s"values are: ${valuesContent.toString()}")
+    next match {
+      case Some(ch) => println(s"next is ${ch.nodeId}")
+      case None => println("no next")
+    }
   }
 
   def exsits(k: K): Boolean = {
@@ -326,7 +330,7 @@ case class LeafNode[K : Ordering, V: ClassTag] (
 
       if (node.next.isEmpty)
         return
-
+      println(s"visiting next: ${node.next.get.nodeId}")
       range_accumulator(node.next.get, start, end, ret, ct + 1)
     }
 
@@ -378,7 +382,7 @@ case class LeafNode[K : Ordering, V: ClassTag] (
     val splitPos = keys.size / 2
     val splitKey = keys(splitPos)
 
-    val newLeaf = new LeafNode[K, V](nodeWidth, Counter.inc())
+    val newLeaf = new LeafNode[K, V](nodeWidth, Counter.inc(), next)
     for (i <- splitPos until keys.size) {
       newLeaf.simplePut(keys(i).get, values(i).get)
       keys(i) = None
