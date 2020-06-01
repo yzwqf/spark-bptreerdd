@@ -37,7 +37,7 @@ private class BplusHadoopRDDPartition[BK: Ordering, BV: ClassTag]
 
 class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](
   @transient sc: SparkContext,
-  bplusTreePath: String,
+  bplusTreePath: String, // not used
   build_tree: Boolean,
   key: String,
   broadcastedConf:
@@ -46,8 +46,8 @@ class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](
   inputFormatClass: Class[_ <: InputFormat[K, V]],
   keyClass: Class[K],
   valueClass: Class[V],
-  minPartitions: Int,
-  var prev: RDD[BPlusTree[BK, BV]] = null ) (implicit m: Manifest[BK])
+  minPartitions: Int
+  ) (implicit m: Manifest[BK])
   extends HadoopRDD[K, V](sc, broadcastedConf, initLocalJobConfFuncOpt,
     inputFormatClass, keyClass, valueClass, minPartitions) {
   private val createTime = new Date()
@@ -95,24 +95,22 @@ class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](
         Array.empty[Partition]
     }
   }
-   def build_tree (): RDD[BPlusTree[BK, BV]] = withScope {
-//    val cleanF = sc.clean(f)
-    new BplusMapPartitionsRDD[BPlusTree[BK, BV], (K, V)](this,
+  def build_tree (f: (String => BK) = null): RDD[BPlusTree[BK, BV]] = withScope {
+    new MapPartitionsRDD[BPlusTree[BK, BV], (K, V)](this,
       (context, pid, iter) => {
-//        println("hahaha")
         var btree : BPlusTree[BK, BV] = new BPlusTree[BK, BV](new BPlusTreeConfig(512, 512), "");
         while (iter.hasNext) {
           val a = iter.next()
-          val BPTreeKey: BK = extractFrom[BK](a._2.toString);
+          var BPTreeKey : BK = null.asInstanceOf[BK]
+          if (f == null) {
+             BPTreeKey = extractFrom[BK](a._2.toString)
+          } else {
+            BPTreeKey = f(a._2.toString)
+          }
           val BPTreeVal = a._1.asInstanceOf[LongWritable].get().asInstanceOf[BV]
-//          println(BPTreeKey)
-//          println(BPTreeVal)
           btree.put(BPTreeKey, BPTreeVal)
         }
-//        println( btree.range(0.asInstanceOf[BK], 1000.asInstanceOf[BK]).foreach(v => {
-//          println(v.get)
-//        }))
-        var new_iter = new NextIterator[BPlusTree[BK, BV]] {
+        val new_iter = new NextIterator[BPlusTree[BK, BV]] {
           var numberRead = 0
           val record = btree;
           override def getNext(): BPlusTree[BK, BV] = {
@@ -128,10 +126,10 @@ class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](
           override def close(): Unit = {}
         }
         new InterruptibleIterator[BPlusTree[BK, BV]](context, new_iter)
-
-//        iter.map(cleanF)
-      })
+      }
+    )
   }
+
   def viewBpTree(start: BK, end: BK) : Unit = withScope {
 //    println("here viewBpTree")
 //   val results = sc.runJob(this, (iter: Iterator[(K, V)]) => iter.toArray)

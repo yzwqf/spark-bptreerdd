@@ -15,7 +15,7 @@ import org.apache.spark.util.SerializableConfiguration
 class IndexContext(conf : SparkConf) extends SparkContext(conf : SparkConf) {
   def IndexFilterFile[K : Ordering, V: ClassTag](
                        path: String,
-                       bplusTreePath: String,
+                       bplusTreePath: String, //not used, for future
                        build_tree: Boolean = false,
                        key: String = null,
                        minPartitions: Int = defaultMinPartitions)
@@ -29,7 +29,7 @@ class IndexContext(conf : SparkConf) extends SparkContext(conf : SparkConf) {
   }
 
   def hadoopIndexFile[K, V, BK : Ordering, BV: ClassTag](path: String,
-                            bplusTreePath: String,
+                            bplusTreePath: String, //not used
                             inputFormatClass: Class[_ <: InputFormat[K, V]],
                             keyClass: Class[K],
                             valueClass: Class[V],
