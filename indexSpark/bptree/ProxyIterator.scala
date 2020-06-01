@@ -1,7 +1,7 @@
-package main.scala.edu.ucas.cs.dbcourse.spark.bplusrdd.bptree
+
+package org.apache.spark.examples.indexSpark.bptree
 
 import scala.reflect.ClassTag
-import org.apache.spark.SparkContext._
 
 // CloseRange means [a, b]
 object BptFilterOperator extends Enumeration {
@@ -10,14 +10,15 @@ object BptFilterOperator extends Enumeration {
 }
 
 class FilterFunction[K : Ordering, V](
-                                    val f: V => Boolean,
                                     val field: String,
+                                    val f: V => Boolean,
                                     val op: BptFilterOperator.Op,
                                     val args: K*
-                                  ) extends Function1[V, Boolean] with Serializable {
+                                  ) extends Function1[V, Boolean] {
+
   import Ordered._
 
-  val pred: K => Boolean = op match {
+  def pred: K => Boolean = op match {
       case BptFilterOperator.LT => _ < args(0)
       case BptFilterOperator.LE => _ <= args(0)
       case BptFilterOperator.EQ => _ == args(0)
@@ -37,7 +38,7 @@ class ProxyIterator[K : Ordering, V: ClassTag](
   override def hasNext = false
   override def next: V = nextValue
 
-  override def filter(f: V => Boolean): Iterator[V] = 
+  override def filter(f: V => Boolean): Iterator[V] =
     if (f.isInstanceOf[FilterFunction[K, V]]) {
       val fObj = f.asInstanceOf[FilterFunction[K, V]]
       if (bpTree.indexedBy(fObj.field)) fObj.op match {

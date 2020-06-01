@@ -59,6 +59,7 @@ class BPlusTree[K : Ordering, V: ClassTag] (
   def firstLeafNode: Tuple2[Option[LeafNode[K, V]], Int] = (Some(firstLeaf), 0)
 }
 
+/*
 object BPTree {
   def main(args: Array[String]): Unit = {
 
@@ -169,3 +170,4 @@ object BPTree {
     // }
   }
 }
+*/
