@@ -1,0 +1,7 @@
+1. 首先安装idea-scala平台
+2. 编译Spark源码，本次实验使用的是2.4.5版本
+3. 根据https://github.com/linbojin/spark-notes/blob/master/ide-setup.md搭建，本人使用的Ubuntu版本是18.04
+4. 将本文件夹放至Spark源码的examples文件夹下。
+以我的为例，是spark-2.4.5/examples/src/main/scala/org/apache/spark/examples
+5. 向hdfs中put需要的数据，修改test.scala的JsonPath和BTreePath，并修改配置中的VM options为-Dspark.master=local
+6. 运行test.scala
