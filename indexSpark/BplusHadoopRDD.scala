@@ -69,7 +69,6 @@ class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](
         json = json \ s(i)
       }
       json.extract[T]
-
   }
 
   override def getPartitions: Array[Partition] = {
@@ -99,6 +98,8 @@ class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](
     new MapPartitionsRDD[BPlusTree[BK, BV], (K, V)](this,
       (context, pid, iter) => {
         var btree : BPlusTree[BK, BV] = new BPlusTree[BK, BV](new BPlusTreeConfig(512, 512), "");
+        var btree_list : List[BPlusTree[BK, BV]] = Nil
+        var index = 0
         while (iter.hasNext) {
           val a = iter.next()
           var BPTreeKey : BK = null.asInstanceOf[BK]
@@ -107,17 +108,33 @@ class BplusHadoopRDD[K, V, BK : Ordering, BV: ClassTag](
           } else {
             BPTreeKey = f(a._2.toString)
           }
+//          if (BPTreeKey.asInstanceOf[Long] <= 35 && BPTreeKey.asInstanceOf[Long] >= 11) {
+//
+//            println(BPTreeKey +" "+key+" "+ a._2.toString)
+//          }
+
+
           val BPTreeVal = a._1.asInstanceOf[LongWritable].get().asInstanceOf[BV]
           btree.put(BPTreeKey, BPTreeVal)
+          index += 1
+          if (index > 100000) {
+            index = 0
+            btree_list = (btree_list:+ btree)
+            btree = new BPlusTree[BK, BV](new BPlusTreeConfig(512, 512), "");
+          }
+        }
+
+        if (index > 0 && index <= 100000) {
+          btree_list = (btree_list:+ btree)
         }
         val new_iter = new NextIterator[BPlusTree[BK, BV]] {
           var numberRead = 0
-          val record = btree;
+          val records = btree_list;
           override def getNext(): BPlusTree[BK, BV] = {
-            if (numberRead == 0) {
+            if (numberRead < records.length) {
               finished = false
-              numberRead+= 1
-              record
+              numberRead += 1
+              records.apply(numberRead - 1)
             } else {
               finished = true
               null

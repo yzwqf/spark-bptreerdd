@@ -170,8 +170,10 @@ class BplusHadoopLoader[U: ClassTag, K, V, BK: Ordering, BV: ClassTag](
       val array = new Array[Partition](inputSplits.size)
       for (i <- 0 until inputSplits.size) {
         array(i) = new BplusHadoopRDDPartition[BK, BV](id, i, inputSplits(i))
-        array(i).asInstanceOf[BplusHadoopRDDPartition[BK, BV]].hadoopPartition
-          = firstParent[U].partitions(i)
+        if (i < firstParent[U].partitions.length) {
+          array(i).asInstanceOf[BplusHadoopRDDPartition[BK, BV]].hadoopPartition
+            = firstParent[U].partitions(i)
+        }
       }
       array
     } catch {
@@ -183,18 +185,20 @@ class BplusHadoopLoader[U: ClassTag, K, V, BK: Ordering, BV: ClassTag](
   }
 
   override def compute(theSplit: Partition, context: TaskContext): InterruptibleIterator[(K, V)] = {
-
-    val a = firstParent[U].iterator(theSplit.asInstanceOf[BplusHadoopRDDPartition[BK, BV]].hadoopPartition, context)
     var postions : List[Long] = Nil
-    while (a.hasNext) {
-      val btree = a.next().asInstanceOf[BPlusTree[BK, BV]]
-//      println(start)
-//      println(end.isInstanceOf[Long])
-      btree.range(start, end).foreach(
-        x => postions = (postions:+ x.get.asInstanceOf[Long])
-      )
-//      println(postions.count(x => true))
+    if (theSplit.asInstanceOf[BplusHadoopRDDPartition[BK, BV]].hadoopPartition != null) {
+      val a = firstParent[U].iterator(theSplit.asInstanceOf[BplusHadoopRDDPartition[BK, BV]]
+        .hadoopPartition, context)
+      while (a.hasNext) {
+        val btree = a.next().asInstanceOf[BPlusTree[BK, BV]]
+        btree.range(start, end).foreach(
+          x => postions = (postions:+ x.get.asInstanceOf[Long])
+        )
+      }
+
+      postions.sortWith( _.compareTo(_) <0 )
     }
+
     val iter = new NextIterator[(K, V)] {
       private val split = theSplit.asInstanceOf[HadoopPartition]
       logInfo("Input split: " + split.inputSplit)

@@ -36,15 +36,11 @@ class LineRecordReaderWithFilter(job: JobConf, split: FileSplit, filter: List[Lo
 
   def  next(key: LongWritable, value: Text) : Boolean = this.synchronized {
     while (index < LineNeedOffest.length) {
-      if (LineNeedOffest.apply(index) >= start && LineNeedOffest.apply(index) <= end) {
         key.set(LineNeedOffest.apply(index))
         val line_content = HdfsUtils.get_line(inStream, LineNeedOffest.apply(index))
         value.set(line_content)
         index = index + 1
         return true
-      } else {
-        index = index + 1
-      }
     }
     return false
   }

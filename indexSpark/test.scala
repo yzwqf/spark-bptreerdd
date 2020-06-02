@@ -18,11 +18,9 @@ import org.json4s.DefaultFormats
 import scala.reflect.{ClassTag, Manifest}
 object Test{
   def get_data[U: ClassTag, BK: Ordering, BV : ClassTag](sc: SparkContext, rdd: RDD[U],
-                    filePath: String, start: BK, end: BK): RDD[(LongWritable, Text)] = {
+           filePath: String, start: BK, end: BK): RDD[(LongWritable, Text)] = {
     sc.assertNotStopped()
     FileSystem.getLocal(sc.hadoopConfiguration)
-    //    println("successsssssssssssssssssssssssssss")
-    // A Hadoop configuration can be about 10 KB, which is pretty big, so broadcast it.
     val confBroadcast = sc.broadcast(new SerializableConfiguration(sc.hadoopConfiguration))
     val setInputPathsFunc = (jobConf: JobConf) => FileInputFormat.setInputPaths(jobConf, filePath)
     new BplusHadoopLoader[U, LongWritable, Text, BK, BV](
@@ -102,18 +100,18 @@ object Test{
       .getOrCreate()
 //    val JsonPath : String = "hdfs://localhost:9000/hw1-input/test.json"
 //    val BTreePath : String = "hdfs://localhost:9000/hw1-input/test.json.btree"
-    val JsonPath : String = "hdfs://localhost:9000/hw1-input/test.csv"
-    val BTreePath : String = "hdfs://localhost:9000/hw1-input/test.csv.btree"
-//    val data : RDD[(LongWritable, Text)] = spark.sparkContext
-//      .asInstanceOf[IndexContext].IndexFilterFile[Long, Long](JsonPath, BTreePath, true, "father.age")
+    val JsonPath : String = "hdfs://localhost:9000/hw1-input/test3.json"
+    val BTreePath : String = "hdfs://localhost:9000/hw1-input/test3.json.btree"
+    val data : RDD[(LongWritable, Text)] = spark.sparkContext
+      .asInstanceOf[IndexContext].IndexFilterFile[Long, Long](JsonPath, BTreePath, true, "father.age")
 //    val tree_RDD = data.asInstanceOf[BplusHadoopRDD[LongWritable, Text, Long, Long]].build_tree(graph_extract)
-//
+    val tree_RDD = data.asInstanceOf[BplusHadoopRDD[LongWritable, Text, Long, Long]].build_tree()
 //      tree_RDD.saveAsObjectFile(BTreePath)
 
     var startTime = System.nanoTime
     var sum1: Long = 0;
-    val tree_RDD: RDD[BPlusTree[Long, Long]] = spark.sparkContext.objectFile(BTreePath).cache()
-    val filterd_data = get_data[BPlusTree[Long, Long], Long, Long](spark.sparkContext, tree_RDD, JsonPath, 35, 35)
+//    val tree_RDD: RDD[BPlusTree[Long, Long]] = spark.sparkContext.objectFile(BTreePath).cache()
+    val filterd_data = get_data[BPlusTree[Long, Long], Long, Long](spark.sparkContext, tree_RDD, JsonPath, 11, 35)
     sum1 = filterd_data.count()
     var endTime = System.nanoTime
     println("first tree_RDD : " + (endTime-startTime)/1000000d)
@@ -121,31 +119,31 @@ object Test{
 
     var sum2: Long = 0
     startTime = System.nanoTime
-    val new_filterd_data = get_data[BPlusTree[Long, Long], Long, Long](spark.sparkContext, tree_RDD, JsonPath, 35, 35)
+    val new_filterd_data = get_data[BPlusTree[Long, Long], Long, Long](spark.sparkContext, tree_RDD, JsonPath, 11, 35)
     sum2 = new_filterd_data.count()
     endTime = System.nanoTime
     println("second tree_RDD, cached: " + (endTime-startTime)/1000000d)
+//
+    var sum3: Long = 0
+    startTime = System.nanoTime
+    val dataSet = spark.sparkContext.textFile(JsonPath)
+    sum3 = dataSet.filter(s => {
+      val age = JsonTool.parseJson[Int](s, "father.age")
+      age >= 11 && age <= 35
+    }).count()
+    endTime = System.nanoTime
+    println("first hadoopRDD, cached: " + (endTime-startTime)/1000000d)
+
 
 //    var sum3: Long = 0
 //    startTime = System.nanoTime
 //    val dataSet = spark.sparkContext.textFile(JsonPath)
 //    sum3 = dataSet.filter(s => {
-//      val age = JsonTool.parseJson[Int](s, "father.age")
-//      age >= 35 && age <= 36
+//      val age = graph_extract(s)
+//      age >= 11 && age <= 35
 //    }).count()
 //    endTime = System.nanoTime
 //    println("first hadoopRDD, cached: " + (endTime-startTime)/1000000d)
-
-
-    var sum3: Long = 0
-    startTime = System.nanoTime
-    val dataSet = spark.sparkContext.textFile(JsonPath)
-    sum3 = dataSet.filter(s => {
-      val age = graph_extract(s)
-      age >= 35 && age <= 35
-    }).count()
-    endTime = System.nanoTime
-    println("first hadoopRDD, cached: " + (endTime-startTime)/1000000d)
 
     println(sum1 + "," + sum2 + "," + sum3)
 
