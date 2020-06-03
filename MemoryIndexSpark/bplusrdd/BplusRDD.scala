@@ -1,16 +1,12 @@
 package org.apache.spark.examples.bplusrdd 
 
-import scala.reflect.ClassTag
 
 import org.apache.spark._
-import org.apache.spark.SparkContext._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
-
+import org.apache.spark.rdd.{LocalRDDCheckpointData, RDD}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-
 import org.apache.spark.examples.bplusrdd.bptree._
+import org.apache.spark.storage.StorageLevel
 
 
 object JsonTool {
@@ -26,7 +22,7 @@ object JsonTool {
 class BplusRDDPartition[K : Ordering](
   private val indexedField: String
 ) extends Serializable {
-  private val bpTree = new BPlusTree[K, String](new BPlusTreeConfig(), indexedField)
+  private val bpTree = new BPlusTree[K, String](new BPlusTreeConfig(64, 64), indexedField)
 
   def buildBplusTree(iter: Iterator[String])(implicit m: Manifest[K]): this.type = {
     iter.foreach (s => bpTree.put(JsonTool.parseJson[K](s, indexedField), s))
@@ -48,7 +44,19 @@ class BplusRDD[K : Ordering](private val prev: RDD[BplusRDDPartition[K]])
   override val partitioner = prev.partitioner
   override protected def getPartitions: Array[Partition] = prev.partitions
 
-  override def compute(split: Partition, context: TaskContext): Iterator[String] = 
+  override def persist(newLevel: StorageLevel): this.type = {
+    prev.persist(newLevel)
+    this
+  }
+
+  override def persist(): this.type = {
+    prev.persist
+    this
+  }
+
+  override def cache() = persist()
+
+  override def compute(split: Partition, context: TaskContext): Iterator[String] =
     firstParent[BplusRDDPartition[K]].iterator(split, context).next.iterator
 }
 

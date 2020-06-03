@@ -28,83 +28,48 @@ object BptLogQuery {
     val sparkConf = new SparkConf().setAppName("Bpt Log Query")
     val sc = new SparkContext(sparkConf)
 
-    val dataSet = sc.textFile(args(0))
+    val dataSet = sc.textFile(if (args.length == 1) args(0) else "/home/yzwqf/test.json")
     val bprdd = BplusRDD[Int](dataSet, "age").cache
 
-
     var startTime = System.nanoTime
-    val cntx = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.CloseRange, 27, 54))..count
+    //val cntx = dataSet.filter(s => { JsonTool.parseJson[Int](s, "age") <= 90 }).count
+    val cntx = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.LT, 0)).count
     var endTime = System.nanoTime
-    println("bplusrdd setup: " + (endTime-startTime)/100000000d + ", dummy" + cntx)
+    println("bplusrdd setup: " + (endTime-startTime)/1000000000d + ", dummy " + cntx)
+
+    /*
+    startTime = System.nanoTime
+    val cnt0 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.CloseRange, 20, 70)).count
+    //val cnt0 = dataSet.filter(s => { val age = JsonTool.parseJson[Int](s, "age")
+    //  age >= 20 && age <= 70
+    //}).count
+    endTime = System.nanoTime
+    println("closerange bplusrdd, cached: " + (endTime-startTime)/1000000000d)
 
     startTime = System.nanoTime
-    val cnt0 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.CloseRange, 27, 54)).count
+    val cnt2 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.LT, 30)).count
+    //val cnt2 = dataSet.filter(s => JsonTool.parseJson[Int](s, "age") < 30).count
     endTime = System.nanoTime
-    println("closerange bplusrdd, cached: " + (endTime-startTime)/100000000d)
+    println("LT bplusrdd, pred, cached: " + (endTime-startTime)/1000000000d)
 
     startTime = System.nanoTime
-    val cnt1 = dataSet.filter(s => {
-      val age = JsonTool.parseJson[Int](s, "age")
-      age >= 27 && age <= 54
-    }).count
+    val cnt5 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.GT, 60)).count
+    //val cnt5 = dataSet.filter(s => JsonTool.parseJson[Int](s, "age") > 60).count
     endTime = System.nanoTime
-    println("closerange hadoopRDD, cached: " + (endTime-startTime)/100000000d)
-    println(cnt0 + "," + cnt1)
-
+    println("GT bplusrdd, pred, cached: " + (endTime-startTime)/1000000000d)
 
     startTime = System.nanoTime
-    val cnt2 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.LT, 27)).count
+    val cnt11 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.LE, 30)).count
+    //val cnt11 = dataSet.filter(s => JsonTool.parseJson[Int](s, "age") <= 30).count
     endTime = System.nanoTime
-    println("LT bplusrdd, pred, cached: " + (endTime-startTime)/100000000d)
+    println("LE bplusrdd, pred, cached: " + (endTime-startTime)/1000000000d)
 
     startTime = System.nanoTime
-    val cnt3 = bprdd.filter(JsonTool.parseJson[Int](_, "age") < 27).count
+    val cnt13 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.GE, 60)).count
+    //val cnt13 = dataSet.filter(s => JsonTool.parseJson[Int](s, "age") >= 60).count
     endTime = System.nanoTime
-    println("LT bplusrdd, seq, cached: " + (endTime-startTime)/100000000d)
-
-    startTime = System.nanoTime
-    val cnt4 = dataSet.filter(s => JsonTool.parseJson[Int](s, "age") < 27).count
-    endTime = System.nanoTime
-    println("LT hadooprdd, cached: " + (endTime-startTime)/100000000d)
-    println(cnt2 + "," + cnt3 + "," + cnt4)
-
-
-    startTime = System.nanoTime
-    val cnt5 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.GT, 49)).count
-    endTime = System.nanoTime
-    println("GT bplusrdd, pred, cached: " + (endTime-startTime)/100000000d)
-
-    startTime = System.nanoTime
-    val cnt6 = bprdd.filter(JsonTool.parseJson[Int](_, "age") > 49).count
-    endTime = System.nanoTime
-    println("GT bplusrdd, seq, cached: " + (endTime-startTime)/100000000d)
-
-    startTime = System.nanoTime
-    val cnt7 = dataSet.filter(s => JsonTool.parseJson[Int](s, "age") > 49).count
-    endTime = System.nanoTime
-    println("GT hadooprdd, cached: " + (endTime-startTime)/100000000d)
-    println(cnt5 + "," + cnt6 + "," + cnt7)
-
-
-    startTime = System.nanoTime
-    val col0 = bprdd.filter(new FilterFunction(_ <= "10", "age", BptFilterOperator.EQ, 37)).collect
-    val cnt8 = col0.length
-    endTime = System.nanoTime
-    println("EQ bplusrdd, pred, cached: " + (endTime-startTime)/100000000d)
-
-    startTime = System.nanoTime
-    val cnt9 = bprdd.filter(JsonTool.parseJson[Int](_, "age") == 37).count
-    endTime = System.nanoTime
-    println("EQ bplusrdd, seq, cached: " + (endTime-startTime)/100000000d)
-
-    startTime = System.nanoTime
-    val cnt10 = dataSet.filter(s => JsonTool.parseJson[Int](s, "age") == 37).count
-    endTime = System.nanoTime
-    println("EQ hadooprdd, cached: " + (endTime-startTime)/100000000d)
-    println(cnt8 + "," + cnt9 + "," + cnt10)
-
-    col0.foreach {s => println(s) }
-
+    println("GE bplusrdd, pred, cached: " + (endTime-startTime)/1000000000d)
+    */
     sc.stop()
   }
 }
