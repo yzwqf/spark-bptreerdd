@@ -1,4 +1,4 @@
-package main.scala.edu.ucas.cs.dbcourse.spark.bplusrdd.bptree
+package org.apache.spark.examples.bplusrdd.bptree
 
 import scala.reflect.ClassTag
 import org.apache.spark.SparkContext._
@@ -37,7 +37,7 @@ class ProxyIterator[K : Ordering, V: ClassTag](
   override def hasNext = false
   override def next: V = nextValue
 
-  override def filter(f: V => Boolean): Iterator[V] = 
+  override def filter(f: V => Boolean): Iterator[V] =
     if (f.isInstanceOf[FilterFunction[K, V]]) {
       val fObj = f.asInstanceOf[FilterFunction[K, V]]
       if (bpTree.indexedBy(fObj.field)) fObj.op match {

@@ -1,4 +1,4 @@
-package main.scala.edu.ucas.cs.dbcourse.spark.bplusrdd
+package org.apache.spark.examples.bplusrdd 
 
 import scala.reflect.ClassTag
 
@@ -47,18 +47,6 @@ class BplusRDD[K : Ordering](private val prev: RDD[BplusRDDPartition[K]])
 
   override val partitioner = prev.partitioner
   override protected def getPartitions: Array[Partition] = prev.partitions
-  
-  override def persist(newLevel: StorageLevel): this.type = {
-    prev.persist(newLevel)
-    this
-  }
-
-  override def persist(): this.type = {
-    prev.persist
-    this
-  }
-
-  override def cache() = persist()
 
   override def compute(split: Partition, context: TaskContext): Iterator[String] = 
     firstParent[BplusRDDPartition[K]].iterator(split, context).next.iterator

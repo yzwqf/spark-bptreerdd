@@ -1,4 +1,4 @@
-package main.scala.edu.ucas.cs.dbcourse.spark.bplusrdd.bptree
+package org.apache.spark.examples.bplusrdd.bptree
 
 import scala.reflect.ClassTag
 
@@ -84,7 +84,8 @@ class BptPredIerator[K : Ordering, V: ClassTag] (
                                                   private val pred: K => Boolean
                                                 ) extends BptSeqIerator[K, V](nextNodeAndPos) {
 
-  override def getNext(): Boolean = nextNode match {
+  override def getNext(): Boolean = 
+    nextNode match {
     case Some(rn) =>
       rn.keys(pos) match {
         case Some(key) => if (pred(key)) {
